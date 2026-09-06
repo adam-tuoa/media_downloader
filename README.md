@@ -1,9 +1,12 @@
 # Media Downloader
 
-A small, friendly downloader for YouTube (Vimeo and Bandcamp coming) built on
-[yt-dlp](https://github.com/yt-dlp/yt-dlp). Paste a link, pick **Video** at a quality or
-**Audio (MP3)**, get the file. Heading towards a double-click desktop app that batch-downloads
-lists of links — see [PLAN.md](PLAN.md) for where this is going and what's done.
+A small, friendly desktop downloader for YouTube, Vimeo and Bandcamp, built on
+[yt-dlp](https://github.com/yt-dlp/yt-dlp). Paste links — videos, playlists, albums — pick
+**Video** at a quality or **Audio** in the format you like, and the files land in a folder with
+cover art and tags. See [PLAN.md](PLAN.md) for the decisions and what's done.
+
+This is for personal use. Please respect the terms of the sites you download from and the
+rights of the people who made the videos and music.
 
 **Status:** Phase 3 complete — paste links (videos, playlists, albums), pick the entries you
 want, choose Video (quality, optional subtitles) or Audio (MP3 / M4A / best original), watch
@@ -14,7 +17,7 @@ playlists in their own numbered folders. Sites: YouTube, Vimeo, Bandcamp. Next: 
 ## Install (the desktop app)
 
 Grab the file for your computer from the
-[latest release](https://github.com/adam-tuoa/youtube_downloader_app/releases/latest) — Windows
+[downloads page](https://github.com/adam-tuoa/media-downloader-releases/releases/latest) — Windows
 zip, macOS zip or Linux tar.gz — and follow the three-line instructions there. The app opens in
 your browser; **Quit** stops it. It updates its downloader engine (yt-dlp) on every launch and
 tells you when a new app version exists.
@@ -160,8 +163,12 @@ Build locally (any OS builds only for itself; CI builds all three):
 ```
 
 Pushing a tag like `v0.4.0` runs `.github/workflows/release.yml`, which builds Windows, Linux
-and (Intel) macOS bundles and attaches them to a GitHub Release with the instructions from
-`packaging/RELEASE_NOTES.md`. `workflow_dispatch` builds the artifacts without releasing.
+and (Intel) macOS bundles and publishes them as a release on the **public downloads repo**,
+`adam-tuoa/media-downloader-releases`, with the instructions from `packaging/RELEASE_NOTES.md`.
+This code repo is private; the split keeps download links (and the in-app update check) working
+without a GitHub login. The workflow needs a `RELEASES_TOKEN` secret: a fine-grained personal
+access token with *Contents: read and write* on the releases repo only. `workflow_dispatch`
+builds the artifacts without publishing.
 
 ## Configuration
 
