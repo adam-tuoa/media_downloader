@@ -32,13 +32,32 @@ python3.13 -m venv .venv
 cd frontend && npm install
 ```
 
+### Windows (PowerShell)
+
+```powershell
+# Tools - skip any you already have; close and reopen the terminal after installing.
+winget install Git.Git
+winget install OpenJS.NodeJS.LTS
+py --list                      # needs 3.13 or newer listed
+
+git clone https://github.com/adam-tuoa/youtube_downloader_app.git
+cd youtube_downloader_app
+py -3 -m venv .venv
+.venv\Scripts\python -m pip install --upgrade pip
+.venv\Scripts\pip install -e "backend[dev]"
+.venv\Scripts\python scripts\fetch_binaries.py     # ~250 MB; Defender may pause on yt-dlp.exe once
+cd frontend; npm install; cd ..
+```
+
+Calling `.venv\Scripts\...` directly avoids activating the venv (and PowerShell's execution-policy prompt).
+
 ## Run (development)
 
 Two terminals:
 
 ```bash
 # backend on :8000
-cd backend && ../.venv/bin/uvicorn app.main:app --reload
+cd backend && ../.venv/bin/uvicorn app.main:app --reload      # Windows: cd backend; ..\.venv\Scripts\uvicorn app.main:app --reload
 
 # frontend on :5173 (proxies /api to the backend)
 cd frontend && npm run dev

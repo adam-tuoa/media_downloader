@@ -42,3 +42,21 @@ def test_extract_error_strips_boilerplate():
     assert ytdlp.extract_error(stderr) == "[youtube] abc: Video unavailable"
     assert ytdlp.extract_error("") == "yt-dlp failed"
     assert ytdlp.extract_error("Traceback...\nValueError: boom\n") == "ValueError: boom"
+
+
+def test_template_root():
+    assert ytdlp.template_root("/tmp/x/%(title)s [%(id)s].%(ext)s") == Path("/tmp/x")
+    assert ytdlp.template_root("/tmp/x/%(artist)s/%(title)s.%(ext)s") == Path("/tmp/x")
+    assert ytdlp.template_root("%(title)s.%(ext)s") == Path()
+
+
+def test_resolve_output_prefers_reported_then_largest_complete_file(tmp_path):
+    real = tmp_path / "Café [abc].mp4"
+    real.write_bytes(b"x" * 100)
+    (tmp_path / "Café [abc].mp4.part").write_bytes(b"x" * 1000)
+    (tmp_path / "leftover.ytdl").write_bytes(b"x")
+    assert ytdlp.resolve_output(real, tmp_path) == real
+    assert ytdlp.resolve_output(tmp_path / "Caf? [abc].mp4", tmp_path) == real  # mangled report
+    assert ytdlp.resolve_output(None, tmp_path) == real
+    assert ytdlp.resolve_output(None, tmp_path / "missing") is None
+    assert ytdlp.resolve_output(None, tmp_path / "missing") is None

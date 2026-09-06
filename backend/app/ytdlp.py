@@ -99,7 +99,36 @@ def _ytdlp() -> str:
 def _env() -> dict[str, str]:
     env = dict(os.environ)
     env["PATH"] = str(BIN_DIR) + os.pathsep + env.get("PATH", "")
+    # Windows consoles default to a legacy code page; make yt-dlp's output UTF-8 everywhere.
+    env.setdefault("PYTHONUTF8", "1")
+    env.setdefault("PYTHONIOENCODING", "utf-8")
     return env
+
+
+_PARTIAL_SUFFIXES = (".part", ".ytdl", ".temp", ".tmp")
+
+
+def template_root(output_template: str) -> Path:
+    """The fixed directory part of an -o template, i.e. everything before the first %(field)s."""
+    fixed: list[str] = []
+    for part in Path(output_template).parts:
+        if "%(" in part:
+            break
+        fixed.append(part)
+    return Path(*fixed) if fixed else Path()
+
+
+def resolve_output(reported: Path | None, out_dir: Path) -> Path | None:
+    """The finished file: the path yt-dlp reported if it exists, else the largest complete file
+    under out_dir (covers a console mangling non-ASCII characters in the reported path)."""
+    if reported and reported.exists():
+        return reported
+    if not out_dir.is_dir():
+        return None
+    candidates = [
+        f for f in out_dir.rglob("*") if f.is_file() and not f.name.endswith(_PARTIAL_SUFFIXES)
+    ]
+    return max(candidates, key=lambda f: f.stat().st_size, default=None)
 
 
 def base_args() -> list[str]:
@@ -260,6 +289,7 @@ async def download(
     rc, stderr = await _stream(args, handle)
     if rc != 0:
         raise YtdlpError(extract_error(stderr))
-    if result is None or not await asyncio.to_thread(result.exists):
-        raise YtdlpError("yt-dlp finished but did not report an output file")
-    return result
+    path = await asyncio.to_thread(resolve_output, result, template_root(output_template))
+    if path is None:
+        raise YtdlpError("yt-dlp finished but did not produce an output file")
+    return path
