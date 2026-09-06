@@ -1,6 +1,6 @@
 # Plan — Media Downloader (for Dad)
 
-Status: Phase 0 complete 2026-09-06 (CI workflow written, verified on first push). **Next: Phase 1.**
+Status: Phase 1 complete 2026-09-06. **Next: Phase 2.**
 
 ## Goal
 
@@ -85,11 +85,12 @@ Each phase leaves the app working. Tests + CI land in Phase 0 so later phases st
 - [x] README rewritten (Python 3.13, Deno, ffmpeg, how to run)
 
 ### Phase 1 — Job model
-- [ ] SQLite (SQLModel) in app-data dir; `jobs` / `items` tables; survives restart
-- [ ] Worker pool: asyncio queue, N concurrent subprocesses, progress parsed into DB, cancel kills the process
-- [ ] Jobs API (see Architecture) + settings API
-- [ ] Jobs board UI: progress bars, per-item status/errors, retry, clear finished; settings page
-- [ ] Output folder delivery; filename template `%(title)s [%(id)s].%(ext)s`; "Open folder" (`os.startfile` / `xdg-open` / `open`)
+- [x] SQLite (stdlib `sqlite3` — an ORM wasn't worth freezing into the bundle) in app-data dir; `jobs` / `items` tables; survives restart
+- [x] Worker pool: asyncio queue, N concurrent subprocesses, progress parsed into DB (throttled), cancel kills the whole process tree (ffmpeg included)
+- [x] Jobs API (see Architecture) + settings API
+- [x] Jobs board UI: progress bars, per-item status/errors, retry, clear finished; settings page
+- [x] Output folder delivery via `.incomplete/<item>/` then a collision-safe move; filename template `%(title)s [%(id)s].%(ext)s`; "Open folder" / "Show file" (`open -R` / `explorer /select` / `xdg-open`)
+- [x] Probe result reused for the download (`--load-info-json`) — one metadata extraction per item, not two
 
 ### Phase 2 — Batch & playlists
 - [ ] Multi-URL textarea; URL normalisation (`youtu.be`, `/shorts/`, `/live/`, strip `&t=`/`&list=` noise); dedupe
@@ -119,6 +120,7 @@ Each phase leaves the app working. Tests + CI land in Phase 0 so later phases st
 - Trim/clip ranges (`--download-sections`)
 - `MODE=hosted`: auth, Library + retention, rate limits, Docker with ffmpeg + deno
 - Native window + signed auto-updater via Tauri
+- Pre-probe preview in the form ("Check link" from Phase 0) if Dad wants to confirm before queueing
 - "Batch finished" desktop notification
 
 ## Open questions — resolved "keep it flexible" (2026-09-06)

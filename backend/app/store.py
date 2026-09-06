@@ -1,0 +1,225 @@
+"""SQLite persistence for jobs, their items, and settings.
+
+A job is one submission (one or more URLs with shared options); an item is one URL within it.
+All access happens on the event-loop thread, so a single connection suffices.
+"""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+import time
+import uuid
+from dataclasses import asdict, dataclass, field, fields
+from pathlib import Path
+from typing import Any
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS jobs (
+    id TEXT PRIMARY KEY,
+    created_at REAL NOT NULL,
+    kind TEXT NOT NULL,
+    options TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS items (
+    id TEXT PRIMARY KEY,
+    job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    status TEXT NOT NULL,
+    title TEXT,
+    uploader TEXT,
+    duration REAL,
+    thumbnail TEXT,
+    stage TEXT,
+    downloaded INTEGER,
+    total INTEGER,
+    speed REAL,
+    eta INTEGER,
+    file_path TEXT,
+    error TEXT,
+    created_at REAL NOT NULL,
+    started_at REAL,
+    finished_at REAL
+);
+CREATE INDEX IF NOT EXISTS items_job ON items(job_id, position);
+CREATE INDEX IF NOT EXISTS items_status ON items(status);
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+"""
+
+QUEUED, RUNNING, DONE, ERROR, CANCELLED = "queued", "running", "done", "error", "cancelled"
+ACTIVE = (QUEUED, RUNNING)
+RETRYABLE = (ERROR, CANCELLED)
+
+
+@dataclass
+class Item:
+    id: str
+    job_id: str
+    position: int
+    url: str
+    status: str
+    title: str | None = None
+    uploader: str | None = None
+    duration: float | None = None
+    thumbnail: str | None = None
+    stage: str | None = None
+    downloaded: int | None = None
+    total: int | None = None
+    speed: float | None = None
+    eta: int | None = None
+    file_path: str | None = None
+    error: str | None = None
+    created_at: float = 0.0
+    started_at: float | None = None
+    finished_at: float | None = None
+
+
+@dataclass
+class Job:
+    id: str
+    created_at: float
+    kind: str
+    options: dict[str, Any]
+    items: list[Item] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+ITEM_COLUMNS = tuple(f.name for f in fields(Item))
+
+
+def new_id() -> str:
+    return uuid.uuid4().hex[:12]
+
+
+class Store:
+    def __init__(self, path: Path | str) -> None:
+        self.conn = sqlite3.connect(str(path), check_same_thread=False)
+        self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA foreign_keys=ON")
+        self.conn.executescript(SCHEMA)
+
+    def close(self) -> None:
+        self.conn.close()
+
+    # --- jobs ---
+
+    def create_job(self, kind: str, options: dict[str, Any], urls: list[str]) -> Job:
+        job_id, now = new_id(), time.time()
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO jobs (id, created_at, kind, options) VALUES (?, ?, ?, ?)",
+                (job_id, now, kind, json.dumps(options)),
+            )
+            self.conn.executemany(
+                "INSERT INTO items (id, job_id, position, url, status, created_at)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                [(new_id(), job_id, i, url, QUEUED, now) for i, url in enumerate(urls)],
+            )
+        job = self.get_job(job_id)
+        assert job is not None
+        return job
+
+    def get_job(self, job_id: str) -> Job | None:
+        row = self.conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        return self._job(row) if row else None
+
+    def list_jobs(self, limit: int = 50) -> list[Job]:
+        rows = self.conn.execute(
+            "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?", (limit,)
+        ).fetchall()
+        return [self._job(row) for row in rows]
+
+    def delete_job(self, job_id: str) -> None:
+        with self.conn:
+            self.conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+
+    def _job(self, row: sqlite3.Row) -> Job:
+        items = self.conn.execute(
+            "SELECT * FROM items WHERE job_id = ? ORDER BY position", (row["id"],)
+        ).fetchall()
+        return Job(
+            id=row["id"],
+            created_at=row["created_at"],
+            kind=row["kind"],
+            options=json.loads(row["options"]),
+            items=[_item(r) for r in items],
+        )
+
+    # --- items ---
+
+    def get_item(self, item_id: str) -> Item | None:
+        row = self.conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+        return _item(row) if row else None
+
+    def items_with_status(self, *statuses: str) -> list[Item]:
+        marks = ",".join("?" * len(statuses))
+        rows = self.conn.execute(
+            f"SELECT * FROM items WHERE status IN ({marks}) ORDER BY created_at, position",
+            statuses,
+        ).fetchall()
+        return [_item(r) for r in rows]
+
+    def update_item(self, item_id: str, **values: Any) -> None:
+        unknown = set(values) - set(ITEM_COLUMNS)
+        if unknown:
+            raise ValueError(f"unknown item columns: {sorted(unknown)}")
+        assignments = ", ".join(f"{k} = ?" for k in values)
+        with self.conn:
+            self.conn.execute(
+                f"UPDATE items SET {assignments} WHERE id = ?", (*values.values(), item_id)
+            )
+
+    def claim_next_queued(self) -> Item | None:
+        """Atomically move the oldest queued item to running."""
+        with self.conn:
+            row = self.conn.execute(
+                "SELECT id FROM items WHERE status = ? ORDER BY created_at, position LIMIT 1",
+                (QUEUED,),
+            ).fetchone()
+            if not row:
+                return None
+            self.conn.execute(
+                "UPDATE items SET status = ?, started_at = ?, stage = ? WHERE id = ?",
+                (RUNNING, time.time(), "Starting", row["id"]),
+            )
+        return self.get_item(row["id"])
+
+    def count_with_status(self, status: str) -> int:
+        return self.conn.execute(
+            "SELECT COUNT(*) FROM items WHERE status = ?", (status,)
+        ).fetchone()[0]
+
+    def recover_interrupted(self) -> int:
+        """Items left 'running' by a previous process (crash, quit) go back to the queue."""
+        with self.conn:
+            cur = self.conn.execute(
+                "UPDATE items SET status = ?, stage = NULL, downloaded = NULL, total = NULL,"
+                " speed = NULL, eta = NULL, started_at = NULL WHERE status = ?",
+                (QUEUED, RUNNING),
+            )
+        return cur.rowcount
+
+    # --- settings ---
+
+    def get_setting(self, key: str) -> str | None:
+        row = self.conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else None
+
+    def set_setting(self, key: str, value: str) -> None:
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?)"
+                " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (key, value),
+            )
+
+
+def _item(row: sqlite3.Row) -> Item:
+    return Item(**{column: row[column] for column in ITEM_COLUMNS})

@@ -15,8 +15,10 @@ import asyncio
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
+import tempfile
 import threading
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -209,7 +211,29 @@ def _popen(args: Sequence[str]) -> subprocess.Popen[bytes]:
         stderr=subprocess.PIPE,
         env=_env(),
         creationflags=_CREATION_FLAGS,
+        start_new_session=os.name != "nt",  # own process group, so we can kill ffmpeg too
     )
+
+
+def _kill_tree(proc: subprocess.Popen[bytes]) -> None:
+    """Kill yt-dlp and anything it spawned (ffmpeg during a merge or conversion)."""
+    if proc.poll() is not None:
+        return
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+            capture_output=True,
+            creationflags=_CREATION_FLAGS,
+        )
+    else:
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    try:
+        proc.kill()
+    except ProcessLookupError:
+        pass
 
 
 def _run_sync(args: Sequence[str], timeout: float) -> tuple[int, str, str]:
@@ -218,7 +242,7 @@ def _run_sync(args: Sequence[str], timeout: float) -> tuple[int, str, str]:
     try:
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
-        proc.kill()
+        _kill_tree(proc)
         proc.communicate()
         raise TimeoutError(f"yt-dlp did not finish within {timeout:.0f}s") from None
     return proc.returncode, out.decode("utf-8", "replace"), err.decode("utf-8", "replace")
@@ -240,7 +264,7 @@ def _stream_sync(
     def watch_cancel() -> None:
         while proc.poll() is None:
             if cancel is not None and cancel.wait(0.25):
-                proc.kill()
+                _kill_tree(proc)
                 return
 
     threads = [threading.Thread(target=drain_stderr, daemon=True)]
@@ -298,11 +322,13 @@ async def download(
     output_template: str,
     on_progress: Callable[[Progress], None] | None = None,
     cancel: threading.Event | None = None,
+    info: dict | None = None,
 ) -> Path:
     """Download one item; returns the final file path after post-processing.
 
     ``on_progress`` is always invoked on the event-loop thread, so callers can touch loop-bound
-    state (Phase 1's job table) without locks. Setting ``cancel`` kills yt-dlp promptly.
+    state (the job table) without locks. Setting ``cancel`` kills yt-dlp promptly. Passing the
+    dict from a recent ``probe()`` as ``info`` skips a second metadata extraction.
     """
     args = [
         "--no-playlist",
@@ -319,6 +345,14 @@ async def download(
         *format_args,
         url,
     ]
+    info_file: Path | None = None
+    if info is not None:
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".info.json", prefix="md-", delete=False, encoding="utf-8"
+        ) as fh:
+            json.dump(info, fh)
+            info_file = Path(fh.name)
+        args += ["--load-info-json", str(info_file)]
     loop = asyncio.get_running_loop()
     reported: Path | None = None
 
@@ -330,7 +364,11 @@ async def download(
         elif parsed is not None and on_progress is not None:
             loop.call_soon_threadsafe(on_progress, parsed)
 
-    rc, stderr = await asyncio.to_thread(_stream_sync, args, handle, cancel)
+    try:
+        rc, stderr = await asyncio.to_thread(_stream_sync, args, handle, cancel)
+    finally:
+        if info_file is not None:
+            info_file.unlink(missing_ok=True)
     if cancel is not None and cancel.is_set():
         raise YtdlpError("Cancelled")
     if rc != 0:

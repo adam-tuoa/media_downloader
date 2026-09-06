@@ -1,39 +1,45 @@
-export interface VideoOption {
-  height: number;
-  fps: number | null;
-  vcodec: string;
-  ext: string;
-  format_id: string;
-  audio_format_id: string | null;
-  filesize: number | null;
-  label: string;
-}
+export type ItemStatus = 'queued' | 'running' | 'done' | 'error' | 'cancelled';
+export type Kind = 'video' | 'audio';
+export type AudioBitrate = 128 | 192 | 320;
 
-export interface AudioOption {
-  format_id: string;
-  abr: number | null;
-  acodec: string;
-  ext: string;
-  filesize: number | null;
-}
-
-export interface ProbeResult {
+export interface Item {
   id: string;
-  title: string;
+  job_id: string;
+  position: number;
+  url: string;
+  status: ItemStatus;
+  title: string | null;
   uploader: string | null;
   duration: number | null;
   thumbnail: string | null;
-  webpage_url: string;
-  extractor: string;
-  video: VideoOption[];
-  audio: AudioOption | null;
+  stage: string | null;
+  downloaded: number | null;
+  total: number | null;
+  speed: number | null;
+  eta: number | null;
+  file_path: string | null;
+  error: string | null;
+  created_at: number;
+  started_at: number | null;
+  finished_at: number | null;
 }
 
-export type AudioBitrate = 128 | 192 | 320;
+export interface Job {
+  id: string;
+  created_at: number;
+  kind: Kind;
+  options: { height?: number | null; audio_format?: string; audio_bitrate?: number };
+  items: Item[];
+}
 
-export type DownloadRequest =
-  | { url: string; kind: 'video'; height: number | null }
-  | { url: string; kind: 'audio'; audio_format: 'mp3'; audio_bitrate: AudioBitrate };
+export interface Settings {
+  output_dir: string;
+  concurrency: number;
+}
+
+export type JobCreate =
+  | { urls: string[]; kind: 'video'; height: number | null }
+  | { urls: string[]; kind: 'audio'; audio_format: 'mp3'; audio_bitrate: AudioBitrate };
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
@@ -64,49 +70,27 @@ async function errorDetail(res: Response): Promise<string> {
   return `Request failed (${res.status})`;
 }
 
-async function post(path: string, body: unknown): Promise<Response> {
+async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    method,
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) throw new ApiError(await errorDetail(res), res.status);
-  return res;
+  return (await res.json()) as T;
 }
 
-export async function probe(url: string): Promise<ProbeResult> {
-  return (await post('/api/probe', { url })).json();
-}
+export const listJobs = () => request<Job[]>('GET', '/api/jobs');
+export const createJob = (body: JobCreate) => request<Job>('POST', '/api/jobs', body);
+export const cancelJob = (id: string) => request<{ ok: true }>('POST', `/api/jobs/${id}/cancel`);
+export const deleteJob = (id: string) => request<{ ok: true }>('DELETE', `/api/jobs/${id}`);
+export const cancelItem = (id: string) => request<{ ok: true }>('POST', `/api/items/${id}/cancel`);
+export const retryItem = (id: string) => request<{ ok: true }>('POST', `/api/items/${id}/retry`);
+export const getSettings = () => request<Settings>('GET', '/api/settings');
+export const saveSettings = (body: Partial<Settings>) =>
+  request<Settings>('PUT', '/api/settings', body);
+export const reveal = (itemId?: string) =>
+  request<{ ok: true; path: string }>('POST', '/api/reveal', { item_id: itemId ?? null });
 
-/** Downloads through the browser; resolves with the saved filename. */
-export async function download(req: DownloadRequest): Promise<string> {
-  const res = await post('/api/download', req);
-  const filename = filenameFrom(res.headers.get('Content-Disposition')) ?? 'download';
-  saveBlob(await res.blob(), filename);
-  return filename;
-}
-
-export function filenameFrom(header: string | null): string | null {
-  if (!header) return null;
-  const star = header.match(/filename\*=utf-8''([^;]+)/i);
-  if (star) {
-    try {
-      return decodeURIComponent(star[1]);
-    } catch {
-      // malformed encoding - try the plain form
-    }
-  }
-  const plain = header.match(/filename="?([^";]+)"?/);
-  return plain ? plain[1] : null;
-}
-
-function saveBlob(blob: Blob, filename: string): void {
-  const objectUrl = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = objectUrl;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-}
+export const isActive = (status: ItemStatus) => status === 'queued' || status === 'running';
+export const jobHasActive = (job: Job) => job.items.some((i) => isActive(i.status));

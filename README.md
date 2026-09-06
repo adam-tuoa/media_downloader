@@ -5,7 +5,9 @@ A small, friendly downloader for YouTube (Vimeo and Bandcamp coming) built on
 **Audio (MP3)**, get the file. Heading towards a double-click desktop app that batch-downloads
 lists of links — see [PLAN.md](PLAN.md) for where this is going and what's done.
 
-**Status:** Phase 0 complete — single link, full quality list, MP3 or MP4, works end to end.
+**Status:** Phase 1 complete — paste one or more links, choose Video (quality) or Audio (MP3),
+watch per-item progress, files land in a folder of your choice. Playlists, batch niceties and
+better audio formats are next (Phases 2–3).
 
 ## Stack
 
@@ -78,15 +80,32 @@ To try the packaged layout instead — FastAPI serving the built UI from one por
 
 CI runs the same on every push (`.github/workflows/ci.yml`).
 
+## How it works
+
+Submitting links creates a **job** with one **item** per link. A worker inside the API process
+takes queued items (two at a time by default), probes each with yt-dlp, downloads it into
+`<output folder>/.incomplete/<item id>/`, and moves the finished file into the output folder
+(never overwriting — a duplicate gets ` (1)` appended). Progress goes into a SQLite database that
+the UI polls once a second while anything is active. Interrupted items are re-queued on restart.
+
+| What | Where |
+|---|---|
+| Jobs database | macOS `~/Library/Application Support/MediaDownloader/`, Windows `%LOCALAPPDATA%\MediaDownloader\`, Linux `~/.local/share/MediaDownloader/` — override with `MD_DATA_DIR` |
+| Downloads (default) | `<your Downloads folder>/Media Downloader/` — change it in Settings |
+
 ## Layout
 
 ```
-backend/app/main.py     FastAPI routes: /api/health, /api/probe, /api/download
-backend/app/ytdlp.py    async wrapper around the yt-dlp executable (probe, download, update)
+backend/app/main.py     FastAPI routes: /api/jobs, /api/items, /api/settings, /api/reveal, /api/probe
+backend/app/worker.py   the download queue: concurrency, progress, cancel, retry
+backend/app/store.py    SQLite persistence for jobs, items and settings
+backend/app/ytdlp.py    wrapper around the yt-dlp executable (probe, download, update, kill)
 backend/app/formats.py  picks the sensible per-height options out of yt-dlp's format list
-backend/tests/          pytest; fixtures/ holds a real `yt-dlp -J` output with URLs stripped
+backend/app/desktop.py  open a folder / reveal a file in Finder or Explorer
+backend/app/paths.py    app-data and default download folders
+backend/tests/          pytest; fakes.py is a controllable stand-in for yt-dlp
 backend/bin/            downloaded tools (gitignored)
-frontend/src/           App.tsx, api.ts, lib/format.ts + tests
+frontend/src/           App.tsx, api.ts, components/ (form, jobs board, settings), lib/ + tests
 scripts/fetch_binaries.py
 PLAN.md                 the plan, decisions, and phase checklists
 ```
@@ -96,6 +115,7 @@ PLAN.md                 the plan, decisions, and phase checklists
 | Variable | Default | Purpose |
 |---|---|---|
 | `MD_BIN_DIR` | `backend/bin` | where the helper binaries live |
+| `MD_DATA_DIR` | per-OS app-data folder | where the jobs database lives |
 | `MD_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | dev-server origins allowed to call the API |
 | `VITE_API_URL` | *(empty)* | backend origin for the UI; empty = same origin / Vite proxy |
 

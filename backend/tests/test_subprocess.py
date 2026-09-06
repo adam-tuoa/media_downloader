@@ -2,7 +2,10 @@
 threads, streaming, error capture, timeouts and cancellation - on every OS CI runs on."""
 
 import asyncio
+import os
+import pathlib
 import sys
+import tempfile
 import threading
 import time
 
@@ -15,6 +18,11 @@ import json, pathlib, sys, time
 args = sys.argv[1:]
 if "--hang" in args:
     time.sleep(60)
+if "--spawn-child" in args:
+    import subprocess
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    print("CHILD " + str(child.pid), flush=True)
+    child.wait()
 if "--version" in args:
     print("2099.01.01"); sys.exit(0)
 if "-J" in args:
@@ -28,7 +36,10 @@ out_dir.mkdir(parents=True, exist_ok=True)
 if "--fail" in args:
     print("ERROR: [youtube] id: boom; please report this issue", file=sys.stderr); sys.exit(1)
 out = out_dir / "Fake [id].mp4"
-out.write_bytes(b"data")
+if "--load-info-json" in args:
+    out.write_bytes(pathlib.Path(args[args.index("--load-info-json") + 1]).read_bytes())
+else:
+    out.write_bytes(b"data")
 print('PROGRESS {"status":"downloading","downloaded":2,"total":4,"estimate":NA,"speed":NA,"eta":1}',
       flush=True)
 print('PROGRESS {"status":"finished","downloaded":4,"total":4,"estimate":NA,"speed":NA,"eta":NA}',
@@ -100,3 +111,34 @@ def test_timeout_kills_the_process(fake_ytdlp):
     with pytest.raises(TimeoutError):
         ytdlp._run_sync(["--hang"], timeout=1)
     assert time.monotonic() - started < 10
+
+
+async def test_download_can_reuse_probe_info(fake_ytdlp):
+    template = str(fake_ytdlp / "out" / "%(title)s.%(ext)s")
+    path = await ytdlp.download("https://ok", [], template, info={"title": "T"})
+    content = await asyncio.to_thread(path.read_bytes)
+    assert content == b'{"title": "T"}'  # the fake copied the info file we handed it
+    leftovers = await asyncio.to_thread(
+        lambda: list(pathlib.Path(tempfile.gettempdir()).glob("md-*.info.json"))
+    )
+    assert not leftovers  # temp info file cleaned up
+
+
+@pytest.mark.skipif(
+    os.name == "nt", reason="process-group semantics are POSIX; Windows uses taskkill /T"
+)
+def test_cancel_kills_children_too(fake_ytdlp):
+    cancel = threading.Event()
+    lines: list[str] = []
+
+    def on_line(line: str) -> None:
+        lines.append(line)
+        if line.startswith("CHILD "):
+            threading.Timer(0.2, cancel.set).start()
+
+    rc, _ = ytdlp._stream_sync(["--spawn-child"], on_line, cancel)
+    assert rc != 0 and cancel.is_set()
+    child_pid = int(next(line for line in lines if line.startswith("CHILD ")).split()[1])
+    time.sleep(0.5)
+    with pytest.raises(OSError):
+        os.kill(child_pid, 0)  # gone, not orphaned
