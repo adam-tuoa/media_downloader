@@ -33,6 +33,7 @@ def test_best_audio_skips_drc_twins(bbb_info):
     assert not audio.format_id.endswith("-drc")
     assert audio.abr == 129
     assert formats.best_audio(bbb_info, ext="m4a").format_id == "140"
+    assert formats.best_audio(bbb_info).format_id == "251"  # Opus wins a bitrate tie
 
 
 def test_pick_height():
@@ -151,3 +152,37 @@ def test_tag_and_subtitle_args():
     assert parsed[-2:] == ["--parse-metadata", "title:%(artist)s - %(title)s"]
     subs = formats.subtitle_args()
     assert subs[0] == "--write-subs" and "--embed-subs" in subs and "en" in subs[2]
+
+
+def test_audio_language_preference(multilang_info):
+    # No preference: the original (as-uploaded) track wins even if a dub has a higher bitrate.
+    assert formats.best_audio(multilang_info).language == "en-US"
+    assert formats.best_audio(multilang_info, ext="m4a").format_id == "140-23"
+    # A preference picks that language ('en' matches 'en-US'); best bitrate within it.
+    assert formats.best_audio(multilang_info, language="es").format_id == "251-8"
+    assert formats.best_audio(multilang_info, ext="m4a", language="fr").format_id == "140-12"
+    assert formats.best_audio(multilang_info, language="en").language == "en-US"
+    # An unavailable language falls back to the original, not to the loudest dub.
+    assert formats.best_audio(multilang_info, language="ja").language == "en-US"
+    # The video partner track follows the same rule.
+    opt = formats.video_options(multilang_info, language="id")[0]
+    assert opt.audio_format_id == "140-10"
+    assert formats.video_options(multilang_info)[0].audio_format_id == "140-23"
+
+
+def test_audio_languages_listing(multilang_info):
+    tracks = formats.audio_languages(multilang_info)
+    assert tracks[0] == {"code": "en-US", "label": "English (US)", "original": True}
+    assert [t["code"] for t in tracks[1:]] == ["fr", "id", "es"]  # alphabetical by label
+    assert formats.audio_languages({"formats": []}) == []
+    assert formats.summary(multilang_info)["audio_languages"][0]["original"] is True
+
+
+def test_preferred_track_leads_the_selector():
+    assert formats.audio_download_args("mp3", 320, preferred_id="140-9")[1] == (
+        "140-9/bestaudio/best"
+    )
+    assert formats.audio_download_args("m4a", preferred_id="140-9")[1].startswith(
+        "140-9/bestaudio[ext=m4a]/"
+    )
+    assert formats.audio_download_args("best")[1] == "bestaudio/best"

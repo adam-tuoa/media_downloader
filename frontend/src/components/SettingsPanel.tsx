@@ -3,6 +3,22 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSettings, reveal, saveSettings, type Settings } from '../api';
 import { inputClass } from '../lib/ui';
 
+const LANGUAGES = [
+  { value: 'en', label: 'English' },
+  { value: '', label: 'Original (as uploaded)' },
+  { value: 'es', label: 'Spanish' },
+  { value: 'fr', label: 'French' },
+  { value: 'de', label: 'German' },
+  { value: 'it', label: 'Italian' },
+  { value: 'pt', label: 'Portuguese' },
+  { value: 'hi', label: 'Hindi' },
+  { value: 'ja', label: 'Japanese' },
+  { value: 'ko', label: 'Korean' },
+  { value: 'zh', label: 'Chinese' },
+  { value: 'ar', label: 'Arabic' },
+  { value: 'id', label: 'Indonesian' },
+];
+
 const BROWSERS = [
   { value: 'firefox', label: 'Firefox' },
   { value: 'chrome', label: 'Chrome' },
@@ -16,6 +32,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
   const [folder, setFolder] = useState(initial.output_dir);
   const [concurrency, setConcurrency] = useState(initial.concurrency);
   const [cookies, setCookies] = useState(initial.cookies_browser ?? '');
+  const [language, setLanguage] = useState(initial.audio_language ?? 'en');
 
   const save = useMutation({
     mutationFn: saveSettings,
@@ -26,7 +43,8 @@ function SettingsForm({ initial }: { initial: Settings }) {
   const dirty =
     folder !== initial.output_dir ||
     concurrency !== initial.concurrency ||
-    cookies !== (initial.cookies_browser ?? '');
+    cookies !== (initial.cookies_browser ?? '') ||
+    language !== (initial.audio_language ?? 'en');
 
   return (
     <>
@@ -71,6 +89,28 @@ function SettingsForm({ initial }: { initial: Settings }) {
       </div>
 
       <div className="space-y-2">
+        <label htmlFor="language" className="block text-sm font-medium text-slate-700">
+          Audio language
+        </label>
+        <select
+          id="language"
+          value={language}
+          onChange={(e) => setLanguage(e.target.value)}
+          className={inputClass}
+        >
+          {LANGUAGES.map((l) => (
+            <option key={l.value} value={l.value}>
+              {l.label}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-slate-500">
+          Only matters when a video offers several audio tracks (YouTube’s dubbing). You get this
+          language if it exists, otherwise the original.
+        </p>
+      </div>
+
+      <div className="space-y-2">
         <label htmlFor="cookies" className="block text-sm font-medium text-slate-700">
           Use cookies from
         </label>
@@ -98,7 +138,14 @@ function SettingsForm({ initial }: { initial: Settings }) {
         <button
           type="button"
           disabled={!dirty || save.isPending}
-          onClick={() => save.mutate({ output_dir: folder, concurrency, cookies_browser: cookies })}
+          onClick={() =>
+            save.mutate({
+              output_dir: folder,
+              concurrency,
+              cookies_browser: cookies,
+              audio_language: language,
+            })
+          }
           className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
         >
           {save.isPending ? 'Saving…' : 'Save'}
@@ -123,7 +170,7 @@ export default function SettingsPanel() {
       {settings.data ? (
         // Keyed on the saved values so the form resets to them after a save or refetch.
         <SettingsForm
-          key={`${settings.data.output_dir}|${settings.data.concurrency}|${settings.data.cookies_browser ?? ''}`}
+          key={`${settings.data.output_dir}|${settings.data.concurrency}|${settings.data.cookies_browser ?? ''}|${settings.data.audio_language}`}
           initial={settings.data}
         />
       ) : settings.error ? (

@@ -93,6 +93,9 @@ class SettingsUpdate(BaseModel):
     output_dir: str | None = None
     concurrency: int | None = Field(default=None, ge=1, le=MAX_CONCURRENCY)
     cookies_browser: Browser | Literal[""] | None = None  # "" clears it
+    audio_language: str | None = Field(
+        default=None, pattern=r"^([A-Za-z]{2,3}(-[A-Za-z]{2,4})?)?$", description='"" = original'
+    )
 
 
 class RevealRequest(BaseModel):
@@ -296,6 +299,7 @@ def _settings_dict(store: Store) -> dict:
         "output_dir": str(s.output_dir),
         "concurrency": s.concurrency,
         "cookies_browser": store.get_setting("cookies_browser") or None,
+        "audio_language": s.audio_language,
     }
 
 
@@ -330,6 +334,8 @@ async def update_settings(req: SettingsUpdate, request: Request) -> dict:
     if req.cookies_browser is not None:
         store.set_setting("cookies_browser", req.cookies_browser)
         ytdlp.options.cookies_browser = req.cookies_browser or None
+    if req.audio_language is not None:
+        store.set_setting("audio_language", req.audio_language.lower())
     return _settings_dict(store)
 
 

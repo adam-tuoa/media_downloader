@@ -246,4 +246,22 @@ def test_build_args_include_tags_and_subtitles(bbb_info):
     assert "--embed-subs" not in worker.build_download_args(quiet, bbb_info)
     audio = Job("j", 0, "audio", {"audio_format": "m4a"})
     args = worker.build_download_args(audio, bbb_info)
-    assert args[1].startswith("bestaudio[ext=m4a]") and "--embed-metadata" in args
+    assert "bestaudio[ext=m4a]" in args[1] and "--embed-metadata" in args
+
+
+def test_build_args_follow_the_audio_language(multilang_info):
+    from app.store import Job
+
+    audio = Job("j", 0, "audio", {"audio_format": "m4a"})
+    assert worker.build_download_args(audio, multilang_info, "es")[1].startswith("140-9/")
+    assert worker.build_download_args(audio, multilang_info, "")[1].startswith("140-23/")
+    video = Job("j", 0, "video", {"height": 720})
+    assert "+140-12/" in worker.build_download_args(video, multilang_info, "fr")[1]
+    assert "+140-23/" in worker.build_download_args(video, multilang_info, None)[1]
+
+
+def test_audio_language_setting_defaults_to_english(tmp_path):
+    store = Store(tmp_path / "db.sqlite3")
+    assert worker.current_settings(store).audio_language == "en"
+    store.set_setting("audio_language", "")
+    assert worker.current_settings(store).audio_language == ""

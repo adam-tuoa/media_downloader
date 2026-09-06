@@ -48,28 +48,43 @@ def safe_name(text: str | None, fallback: str = "Untitled") -> str:
     return cleaned[:120] or fallback
 
 
+DEFAULT_AUDIO_LANGUAGE = "en"  # "" means "the original track, whatever language it is"
+
+
 @dataclass(frozen=True)
 class Settings:
     output_dir: Path
     concurrency: int
+    audio_language: str
 
 
 def current_settings(store: Store) -> Settings:
     output_dir = store.get_setting("output_dir")
     concurrency = store.get_setting("concurrency")
+    language = store.get_setting("audio_language")
     return Settings(
         output_dir=Path(output_dir) if output_dir else default_output_dir(),
         concurrency=max(1, min(MAX_CONCURRENCY, int(concurrency or 2))),
+        audio_language=DEFAULT_AUDIO_LANGUAGE if language is None else language,
     )
 
 
-def build_download_args(job: Job, info: dict) -> list[str]:
+def build_download_args(job: Job, info: dict, language: str | None = None) -> list[str]:
+    """yt-dlp arguments for one item. ``language`` picks among dubbed audio tracks when a video
+    has several; "" or None keeps the original."""
+    language = language or None
     if job.kind == "audio":
+        audio_format = job.options.get("audio_format", "mp3")
+        track = formats.best_audio(
+            info, ext="m4a" if audio_format == "m4a" else None, language=language
+        ) or formats.best_audio(info, language=language)
         args = formats.audio_download_args(
-            job.options.get("audio_format", "mp3"), int(job.options.get("audio_bitrate", 320))
+            audio_format,
+            int(job.options.get("audio_bitrate", 320)),
+            preferred_id=track.format_id if track else None,
         )
         return args + formats.tag_args(info, "audio")
-    options = formats.video_options(info)
+    options = formats.video_options(info, language=language)
     if not options:
         raise ytdlp.YtdlpError("No video streams found for this link - try Audio instead")
     args = formats.video_download_args(formats.pick_height(options, job.options.get("height")))
@@ -184,7 +199,7 @@ class Manager:
             )
             if cancel.is_set():
                 raise ytdlp.YtdlpError("Cancelled")
-            args = build_download_args(job, info)
+            args = build_download_args(job, info, settings.audio_language)
             work_dir.mkdir(parents=True, exist_ok=True)
             seen: dict[str, int | None] = {"total": None}
             final_dir, name_template = destination(settings.output_dir, item)

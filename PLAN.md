@@ -115,6 +115,8 @@ Each phase leaves the app working. Tests + CI land in Phase 0 so later phases st
 - [x] Video ladder 360p → 2160p (4K option in the UI): prefer h264+aac MP4 ≤ 1080p, vp9/av1 above; plain labels
 - [x] Optional subtitles (`--write-subs --embed-subs`)
 - [x] Any playlist/album → one folder per collection, `01 - ` numbering (`%(track,title)s`); `[id]` suffix dropped from filenames
+- [x] Audio-language preference (Settings, default English) for YouTube's dubbed tracks — found by Adam: the
+      highest-bitrate track on a multi-language video was Indonesian, so video downloads got the wrong language
 - [x] Windows "Show file" fix: Explorer's `/select,` must be one quoted argument, else it opens Documents (found on the Win11 box)
 
 ### Phase 4 — Desktop app

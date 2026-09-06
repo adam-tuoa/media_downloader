@@ -192,6 +192,13 @@ def test_settings(client, tmp_path):
     assert ytdlp.options.cookies_browser is None
     assert client.put("/api/settings", json={"cookies_browser": "netscape"}).status_code == 422
 
+    assert s["audio_language"] == "en"
+    assert (
+        client.put("/api/settings", json={"audio_language": "ES"}).json()["audio_language"] == "es"
+    )
+    assert client.put("/api/settings", json={"audio_language": ""}).json()["audio_language"] == ""
+    assert client.put("/api/settings", json={"audio_language": "english"}).status_code == 422
+
     r = client.put(
         "/api/settings", json={"concurrency": 3, "output_dir": str(tmp_path / "elsewhere")}
     )

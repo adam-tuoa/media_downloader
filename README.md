@@ -143,6 +143,10 @@ PLAN.md                 the plan, decisions, and phase checklists
 
 ## Notes
 
+- **Dubbed audio tracks.** YouTube serves many videos with the original soundtrack plus AI-dubbed
+  ones, and the browser plays whichever matches *your* language. Settings → *Audio language*
+  (default English) picks that track when it exists and the original otherwise; choose
+  "Original (as uploaded)" to always get the original.
 - **Vimeo needs you to be signed in** — even for public videos, at the moment. Set *Use cookies
   from* in Settings to a browser you're logged into Vimeo with (Firefox is the most reliable;
   Chrome on Windows usually refuses to share its cookies). The same setting unlocks private,

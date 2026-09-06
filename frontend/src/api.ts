@@ -43,6 +43,8 @@ export interface Settings {
   output_dir: string;
   concurrency: number;
   cookies_browser: string | null;
+  /** Preferred audio track when a video has several (YouTube dubbing); "" = original. */
+  audio_language: string;
 }
 
 export interface NewLink {

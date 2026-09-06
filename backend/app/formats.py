@@ -6,6 +6,7 @@ YouTube serves HD as separate video and audio streams, so a "quality" is really
 
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -34,6 +35,7 @@ class AudioOption:
     acodec: str
     ext: str
     filesize: int | None
+    language: str | None = None
 
 
 def human_size(size: int | None) -> str:
@@ -90,33 +92,69 @@ def _video_rank(fmt: Format) -> tuple[bool, float, bool, float]:
     return (compatible, fmt.get("fps") or 0, _is_direct(fmt), fmt.get("tbr") or 0)
 
 
-def _audio_rank(fmt: Format) -> tuple[float, bool, bool]:
+def _language_matches(fmt: Format, language: str | None) -> bool:
+    """'en' matches 'en', 'en-US', 'en-GB'."""
+    if not language:
+        return False
+    code = str(fmt.get("language") or "").lower()
+    return code == language.lower() or code.startswith(language.lower() + "-")
+
+
+def _is_original_track(fmt: Format) -> bool:
+    # YouTube marks the as-uploaded track with a positive preference; dubs get -1.
+    return (fmt.get("language_preference") or 0) > 0
+
+
+def _audio_rank(fmt: Format, language: str | None) -> tuple[bool, bool, int, bool, bool]:
+    # Bitrate in 8 kbps steps: 128 vs 129 kbps is a tie, and Opus beats AAC at the same rate.
     return (
-        fmt.get("abr") or fmt.get("tbr") or 0,
-        _is_direct(fmt),
+        _language_matches(fmt, language),
+        _is_original_track(fmt),
+        round((fmt.get("abr") or fmt.get("tbr") or 0) / 8),
         str(fmt.get("acodec", "")).startswith("opus"),
+        _is_direct(fmt),
     )
 
 
-def best_audio(info: Info, ext: str | None = None) -> AudioOption | None:
+def best_audio(
+    info: Info, ext: str | None = None, language: str | None = None
+) -> AudioOption | None:
+    """The audio stream to use: the preferred language if the video has such a track, else the
+    original track, best bitrate within that. Videos with one track are unaffected."""
     candidates = [f for f in info.get("formats", []) if _is_audio_only(f)]
     if ext:
         candidates = [f for f in candidates if f.get("ext") == ext]
     if not candidates:
         return None
-    fmt = max(candidates, key=_audio_rank)
+    fmt = max(candidates, key=lambda f: _audio_rank(f, language))
     return AudioOption(
         format_id=str(fmt["format_id"]),
         abr=round(fmt["abr"]) if fmt.get("abr") else None,
         acodec=str(fmt.get("acodec") or "?"),
         ext=str(fmt.get("ext") or "?"),
         filesize=_size(fmt, info.get("duration")),
+        language=fmt.get("language"),
     )
 
 
-def video_options(info: Info) -> list[VideoOption]:
+def audio_languages(info: Info) -> list[dict[str, Any]]:
+    """Distinct audio tracks a video offers, e.g. [{"code": "en-US", "label": "English (US)",
+    "original": True}, {"code": "es", "label": "Spanish", "original": False}]."""
+    seen: dict[str, dict[str, Any]] = {}
+    for f in info.get("formats", []):
+        code = f.get("language")
+        if not _is_audio_only(f) or not code or code in seen:
+            continue
+        note = str(f.get("format_note") or "").split(",")[0]
+        label = re.sub(r"\s*original\s*(\(default\))?\s*$", "", note).strip() or code
+        seen[code] = {"code": code, "label": label, "original": _is_original_track(f)}
+    return sorted(seen.values(), key=lambda t: (not t["original"], t["label"]))
+
+
+def video_options(info: Info, language: str | None = None) -> list[VideoOption]:
     """One option per available height, best first."""
-    audio = best_audio(info, ext="m4a") or best_audio(info)  # AAC muxes cleanly into mp4
+    # AAC muxes cleanly into mp4; language preference applies to the partner track too.
+    audio = best_audio(info, ext="m4a", language=language) or best_audio(info, language=language)
     by_height: dict[int, list[Format]] = {}
     for fmt in info.get("formats", []):
         if _is_video(fmt):
@@ -172,7 +210,9 @@ def video_download_args(option: VideoOption) -> list[str]:
 AUDIO_FORMATS = ("mp3", "m4a", "best")
 
 
-def audio_download_args(audio_format: str = "mp3", bitrate: int = 320) -> list[str]:
+def audio_download_args(
+    audio_format: str = "mp3", bitrate: int = 320, preferred_id: str | None = None
+) -> list[str]:
     """How to get audio out.
 
     mp3  - transcode (compatibility); can't exceed the source's quality
@@ -180,19 +220,17 @@ def audio_download_args(audio_format: str = "mp3", bitrate: int = 320) -> list[s
     best - the site's best stream in its native codec, untouched
            (Opus from YouTube, MP3 from Bandcamp)
     """
+    # A specific track chosen by best_audio() (language-aware) comes first; the generic
+    # selectors remain as fallbacks in case the id has gone stale.
+    head = f"{preferred_id}/" if preferred_id else ""
     if audio_format == "m4a":
-        return [
-            "-f",
-            "bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/bestaudio/best",
-            "-x",
-            "--audio-format",
-            "m4a",
-        ]
+        selector = head + "bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/bestaudio/best"
+        return ["-f", selector, "-x", "--audio-format", "m4a"]
     if audio_format == "best":
-        return ["-f", "bestaudio/best", "-x", "--audio-format", "best"]
+        return ["-f", head + "bestaudio/best", "-x", "--audio-format", "best"]
     return [
         "-f",
-        "bestaudio/best",
+        head + "bestaudio/best",
         "-x",
         "--audio-format",
         "mp3",
@@ -228,4 +266,5 @@ def summary(info: Info) -> dict[str, Any]:
         "extractor": info.get("extractor_key") or info.get("extractor"),
         "video": [asdict(o) for o in video_options(info)],
         "audio": asdict(audio) if audio else None,
+        "audio_languages": audio_languages(info),
     }
