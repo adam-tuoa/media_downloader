@@ -1,6 +1,6 @@
 # Plan — Media Downloader (for Dad)
 
-Status: **v0.4.1 released and verified on the PC and the Mac, 2026-09-06.** Phases 0–4 complete; Dad can be sent the link. Phase 5 items are optional polish.
+Status: **v0.4.1 released and verified on the PC and the Mac, 2026-09-06.** Phases 0–4 complete; Dad has the link. **Next: collect Dad's first feedback, then Phase 5 starting with the Library.**
 
 ## Goal
 
@@ -145,6 +145,11 @@ Each phase leaves the app working. Tests + CI land in Phase 0 so later phases st
       Defender/SmartScreen quarantine), macOS zip on the Mac after `xattr -cr` (Sequoia's Open Anyway didn't work)
 
 ### Phase 5 — Later
+- **Library (first up, Adam's request 2026-09-06):** a page listing everything ever downloaded, from `jobs.sqlite3`
+  — title, thumbnail, site, format/quality, when, and whether the file is still where it was put (moved/deleted
+  files shown as such, not hidden). Actions: open file / show in folder when present, **Download again** (re-queue
+  the same URL with the same options — the whole point when a file has gone), remove from history. Search by title.
+  Cheap because the data is all there already: `items.file_path` + `os.path.exists`, and jobs know their options.
 - Linux AppImage (needs libfuse2 on the user's machine; tar.gz ships first)
 - App icon (.icns / .ico) and a signed macOS build (Developer ID, US$99/yr) if the right-click-Open dance bothers anyone
 - Trim/clip ranges (`--download-sections`)
