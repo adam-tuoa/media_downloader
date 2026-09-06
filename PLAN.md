@@ -1,6 +1,6 @@
 # Plan — Media Downloader (for Dad)
 
-Status: Phase 4 built 2026-09-06 — launcher, token guard, self-update, PyInstaller bundle verified on the Mac; release workflow written. **Next: tag v0.4.0, test the Windows build on the PC, then Dad.**
+Status: **v0.4.0 released 2026-09-06** (Windows / Linux / Intel-macOS builds on the Releases page). **Next: test the Windows zip on the PC as Dad would, then give Dad the link.**
 
 ## Goal
 
