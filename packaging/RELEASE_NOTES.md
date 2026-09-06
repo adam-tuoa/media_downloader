@@ -7,9 +7,12 @@ Download the file for your computer, then:
 installer puts *Media Downloader* in your Start menu (and on the desktop if you tick the box) and
 can open it straight away. No admin password needed.
 
-**macOS** — unzip `MediaDownloader-macos-x64.zip`, then either right-click `Media Downloader`
-→ **Open** → **Open**, or run `xattr -cr "Media Downloader.app"` in Terminal once. The very first
-launch can take 20–30 seconds while macOS checks the new files; after that it's quick.
+**macOS** — unzip `MediaDownloader-macos-x64.zip` and open `Media Downloader`. macOS will say it
+"could not verify" the app (it isn't notarized by Apple): click **Done**, then open
+**System Settings → Privacy & Security**, scroll to the bottom and click **Open Anyway** next to
+*Media Downloader was blocked*, then open the app once more. That happens only the first time.
+(Or, in Terminal, `xattr -cr "Media Downloader.app"` skips the dialogs.) The first launch can
+take 20–30 seconds while macOS checks the new files.
 
 **Linux** — `tar xzf MediaDownloader-linux-x64.tar.gz`, then run `MediaDownloader/MediaDownloader`.
 
