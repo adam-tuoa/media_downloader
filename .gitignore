@@ -8,3 +8,10 @@ build/
 .DS_Store
 .venv/
 venv/
+# generated / downloaded
+backend/bin/
+backend/app/static/
+*.egg-info/
+.ruff_cache/
+.pytest_cache/
+frontend/coverage/

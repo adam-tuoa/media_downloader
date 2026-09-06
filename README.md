@@ -1,31 +1,88 @@
-# YouTube Downloader
+# Media Downloader
 
-A modern web application for downloading YouTube videos, built with React and FastAPI.
+A small, friendly downloader for YouTube (Vimeo and Bandcamp coming) built on
+[yt-dlp](https://github.com/yt-dlp/yt-dlp). Paste a link, pick **Video** at a quality or
+**Audio (MP3)**, get the file. Heading towards a double-click desktop app that batch-downloads
+lists of links — see [PLAN.md](PLAN.md) for where this is going and what's done.
+
+**Status:** Phase 0 complete — single link, full quality list, MP3 or MP4, works end to end.
+
+## Stack
+
+- **Backend:** Python 3.13, FastAPI, driving the official `yt-dlp` executable (not the library —
+  the executable self-updates, which matters because YouTube changes constantly)
+- **Frontend:** React 19, TypeScript, Vite, Tailwind v4, TanStack Query
+- **Bundled tools:** `yt-dlp`, `ffmpeg`/`ffprobe`, `deno` (yt-dlp needs a JavaScript runtime to
+  solve YouTube's challenges) — downloaded into `backend/bin/` by a script, never committed
 
 ## Setup
 
-### Frontend
+Requirements: Python 3.13, Node 24 (or 22+), git. No system ffmpeg needed — it's fetched.
+
 ```bash
-cd frontend
-npm install
-npm run dev
+# 1. Python environment
+python3.13 -m venv .venv
+.venv/bin/pip install -e "backend[dev]"
+
+# 2. Helper binaries (~350 MB, once). The first yt-dlp launch is slow on macOS while the OS
+#    scans the new files — the script does that launch for you, so expect ~30 s here.
+.venv/bin/python scripts/fetch_binaries.py
+
+# 3. Frontend
+cd frontend && npm install
 ```
 
-### Backend
+## Run (development)
+
+Two terminals:
+
 ```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: .\venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+# backend on :8000
+cd backend && ../.venv/bin/uvicorn app.main:app --reload
+
+# frontend on :5173 (proxies /api to the backend)
+cd frontend && npm run dev
 ```
 
-## Features
-- Modern UI with shadcn/ui components
-- Video download functionality
-- Error handling
-- Loading states
+Open <http://localhost:5173>.
 
-## Tech Stack
-- Frontend: React, TypeScript, Tailwind CSS
-- Backend: FastAPI, yt-dlp~
+To try the packaged layout instead — FastAPI serving the built UI from one port — run
+`npm run build` (outputs to `backend/app/static/`) and open <http://localhost:8000>.
+
+## Checks
+
+```bash
+.venv/bin/ruff check . && .venv/bin/ruff format --check .   # python lint/format
+(cd backend && ../.venv/bin/pytest)                          # python tests (no network needed)
+(cd frontend && npm run lint && npm run typecheck && npm test && npm run build)
+```
+
+CI runs the same on every push (`.github/workflows/ci.yml`).
+
+## Layout
+
+```
+backend/app/main.py     FastAPI routes: /api/health, /api/probe, /api/download
+backend/app/ytdlp.py    async wrapper around the yt-dlp executable (probe, download, update)
+backend/app/formats.py  picks the sensible per-height options out of yt-dlp's format list
+backend/tests/          pytest; fixtures/ holds a real `yt-dlp -J` output with URLs stripped
+backend/bin/            downloaded tools (gitignored)
+frontend/src/           App.tsx, api.ts, lib/format.ts + tests
+scripts/fetch_binaries.py
+PLAN.md                 the plan, decisions, and phase checklists
+```
+
+## Configuration
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `MD_BIN_DIR` | `backend/bin` | where the helper binaries live |
+| `MD_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | dev-server origins allowed to call the API |
+| `VITE_API_URL` | *(empty)* | backend origin for the UI; empty = same origin / Vite proxy |
+
+## Notes
+
+- **If YouTube stops working**, the first thing to try is updating yt-dlp:
+  `backend/bin/yt-dlp/yt-dlp_macos -U` (or `yt-dlp_linux` / `yt-dlp.exe`). The desktop app will
+  do this automatically on launch.
+- Docker files were removed in Phase 0; a hosted/Docker mode is a later phase (see PLAN.md).

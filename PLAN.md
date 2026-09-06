@@ -1,6 +1,6 @@
 # Plan — Media Downloader (for Dad)
 
-Status: planning complete 2026-09-06. **Next: Phase 0.**
+Status: Phase 0 complete 2026-09-06 (CI workflow written, verified on first push). **Next: Phase 1.**
 
 ## Goal
 
@@ -20,9 +20,16 @@ Primary user: Adam's dad. Audio quality matters; often audio-only (MP3) is all t
 - **Packaging: PyInstaller `onedir`** (`onefile` trips Windows Defender). Windows: zip (+ Inno Setup installer
   later). Linux: AppImage **plus tar.gz fallback** (AppImage needs `libfuse2` on some distros). macOS: `.app`/`.dmg`.
   Unsigned for now → one-time "Run anyway" / right-click Open.
-- **yt-dlp via the official standalone binary** (subprocess, `-J` for info, `--progress-template` for JSON
+- **yt-dlp via the official executable** (subprocess, `-J` for info, `--progress-template` for JSON
   progress), **self-updated with `yt-dlp -U` on every launch** so YouTube churn never needs an app release.
   Bundled binaries: `yt-dlp`, static `ffmpeg`, `deno` (yt-dlp's recommended JS runtime for YouTube challenges).
+  - **Use the *onedir* zip builds (`yt-dlp_macos.zip` etc.), never the single-file executable.** Measured
+    2026-09-06 on the Intel Mac: single-file = ~23 s *per launch* (it unpacks ~100 MB every time and macOS
+    security-scans the new files); onedir = 23 s once, then 0.7 s. `-U` works on the onedir variant.
+  - The wrapper **never falls back to a `yt-dlp` on PATH** — Adam's Mac has a stale 2024 one in
+    `/usr/local/bin` and it fails in confusing ways ("no such option: --js-runtimes").
+  - With Deno on PATH, yt-dlp's default clients return the full format list (53 formats to 2160p);
+    no `player_client` overrides needed.
 - **Python 3.13** (Adam: 3.13.5 at `/usr/local/bin/python3`). **Frontend:** Vite 7, React 19, TypeScript,
   Tailwind v4, TanStack Query, shadcn/ui.
 - **Sites:** extractor allowlist — YouTube + `youtube:tab` (playlists), Vimeo, Bandcamp (+ album).
@@ -57,21 +64,21 @@ Primary user: Adam's dad. Audio quality matters; often audio-only (MP3) is all t
 Each phase leaves the app working. Tests + CI land in Phase 0 so later phases stay green.
 
 ### Phase 0 — Cleanup & toolchain
-- [ ] Delete dead code: `app.py`, `backend/app/routes/`, `backend/app/util/`, `frontend/src/Index.tsx`,
+- [x] Delete dead code: `app.py`, `backend/app/routes/`, `backend/app/util/`, `frontend/src/Index.tsx`,
       `frontend/src/components/YouTubeDownLoader.tsx`
-- [ ] Rebuild `.venv` on Python 3.13.5; `backend/pyproject.toml` replaces `requirements.txt`; bump FastAPI/uvicorn/pydantic
-- [ ] `scripts/fetch_binaries.py` (yt-dlp, ffmpeg, deno) + `ytdlp.py` subprocess wrapper; drop the pinned yt-dlp library
-- [ ] Format listing done right: include video-only (DASH) streams, best-per-height, `filesize_approx` fallback,
+- [x] Rebuild `.venv` on Python 3.13.5; `backend/pyproject.toml` replaces `requirements.txt`; bump FastAPI/uvicorn/pydantic
+- [x] `scripts/fetch_binaries.py` (yt-dlp, ffmpeg, deno) + `ytdlp.py` subprocess wrapper; drop the pinned yt-dlp library
+- [x] Format listing done right: include video-only (DASH) streams, best-per-height, `filesize_approx` fallback,
       thumbnail/uploader/duration, audio formats in the same response
-- [ ] Download: `<id>+bestaudio/best` merge, path from yt-dlp output (not directory scanning), non-blocking
+- [x] Download: `<id>+bestaudio/best` merge, path from yt-dlp output (not directory scanning), non-blocking
       (no sync yt-dlp inside `async def`), real error messages passed through to the UI
-- [ ] Fix the gremlins: audio preset key mismatch (`audio` vs `audio-only`), `selectedFormat` not reset on preset
+- [x] Fix the gremlins: audio preset key mismatch (`audio` vs `audio-only`), `selectedFormat` not reset on preset
       change, duplicated filter logic, `format_filesize` mutating its arg, `nocheckcertificate` removed
-- [ ] Frontend: Vite 7, React 19, Tailwind v4 (`@tailwindcss/vite`), deps actually declared in `package.json`,
+- [x] Frontend: Vite 7, React 19, Tailwind v4 (`@tailwindcss/vite`), deps actually declared in `package.json`,
       `VITE_API_URL`, show backend error detail
-- [ ] Tooling: ruff, pytest (fixtures = saved `yt-dlp -J` output), eslint + prettier, vitest; GitHub Actions CI (lint + test)
-- [ ] Docker: park it (mark untested in README) until hosted mode is wanted
-- [ ] README rewritten (Python 3.13, Deno, ffmpeg, how to run)
+- [x] Tooling: ruff, pytest (fixtures = saved `yt-dlp -J` output), eslint + prettier, vitest; GitHub Actions CI (lint + test) — 25 pytest + 9 vitest tests
+- [x] Docker: removed (Dockerfiles referenced files that no longer exist); hosted mode is Phase 5
+- [x] README rewritten (Python 3.13, Deno, ffmpeg, how to run)
 
 ### Phase 1 — Job model
 - [ ] SQLite (SQLModel) in app-data dir; `jobs` / `items` tables; survives restart
@@ -118,6 +125,8 @@ Each phase leaves the app working. Tests + CI land in Phase 0 so later phases st
   x86_64 (Intel CI runner); add arm64 later if anyone needs it.
 
 ## Risks
+- **First launch after install or a yt-dlp update takes ~20-30 s on macOS** (security scan of new binaries) —
+  Phase 4 must show a "first-time setup" message rather than look hung.
 - **YouTube churn** — mitigated by yt-dlp self-update + Deno; still expect occasional breakage. Clear in-app error + update button.
 - **Unsigned binaries** — one-time OS warnings; document. Apple signing (US$99/yr) optional later.
 - **AV false positives** on `yt-dlp.exe` / PyInstaller output on Windows — `onedir` reduces; document.
