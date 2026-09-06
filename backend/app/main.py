@@ -14,14 +14,27 @@ from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
-from app import desktop, formats, links, ytdlp
+from app import __version__, desktop, formats, links, updates, ytdlp
 from app.paths import data_dir
-from app.store import ACTIVE, NewItem, Store
+from app.store import ACTIVE, RUNNING, NewItem, Store
 from app.worker import MAX_CONCURRENCY, Manager, current_settings
+
+
+async def _desktop_startup(app: FastAPI, manager: Manager) -> None:
+    """Desktop mode: refresh yt-dlp before the queue starts, then look for an app update."""
+    app.state.ytdlp_update = {"state": "running", "message": "Checking for a downloader update…"}
+    try:
+        report = await ytdlp.update()
+        message = report.splitlines()[-1] if report else "Up to date"
+        app.state.ytdlp_update = {"state": "done", "message": message}
+    except Exception as exc:  # noqa: BLE001 - offline etc.; never block the app on this
+        app.state.ytdlp_update = {"state": "failed", "message": str(exc)}
+    await manager.start()
+    app.state.app_update = await asyncio.to_thread(updates.check_latest, __version__)
 
 
 @asynccontextmanager
@@ -29,16 +42,48 @@ async def lifespan(app: FastAPI):
     store = Store(data_dir() / "jobs.sqlite3")
     manager = Manager(store)
     app.state.store, app.state.manager = store, manager
+    app.state.token = os.environ.get("MD_TOKEN") or None
+    app.state.desktop = os.environ.get("MD_DESKTOP") == "1"
+    app.state.ytdlp_update = {"state": "idle", "message": ""}
+    app.state.app_update = None
+    app.state.quit_requested = False
+    if not hasattr(app.state, "on_quit"):
+        app.state.on_quit = None
     ytdlp.options.cookies_browser = store.get_setting("cookies_browser") or None
-    await manager.start()
+    startup: asyncio.Task | None = None
+    if app.state.desktop:
+        startup = asyncio.create_task(_desktop_startup(app, manager))
+    else:
+        await manager.start()
     try:
         yield
     finally:
+        if startup and not startup.done():
+            startup.cancel()
         await manager.stop()
         store.close()
 
 
-app = FastAPI(title="Media Downloader", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="Media Downloader", version=__version__, lifespan=lifespan)
+
+
+@app.middleware("http")
+async def require_launch_token(request: Request, call_next):
+    """In desktop mode every /api call must carry this launch's secret (cookie or header)."""
+    token = getattr(request.app.state, "token", None)
+    path = request.url.path
+    if token and path.startswith("/api/") and path != "/api/health":
+        supplied = request.cookies.get("md_token") or request.headers.get("x-md-token")
+        if supplied != token:
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "detail": "This tab isn't connected to the app"
+                    " - open Media Downloader from its icon."
+                },
+            )
+    return await call_next(request)
+
 
 _origins = os.environ.get("MD_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
 app.add_middleware(
@@ -118,13 +163,66 @@ def _manager(request: Request) -> Manager:
 # --- info ---
 
 
+@app.get("/launch")
+async def launch(token: str, request: Request) -> RedirectResponse:
+    """Where the launcher points the browser: remember the launch secret, then show the app."""
+    if not request.app.state.token or token != request.app.state.token:
+        raise HTTPException(403, "Wrong launch token")
+    response = RedirectResponse("/", status_code=303)
+    response.set_cookie(
+        "md_token", token, httponly=True, samesite="strict", max_age=365 * 24 * 3600
+    )
+    return response
+
+
 @app.get("/api/health")
-async def health() -> dict:
+async def health(request: Request) -> dict:
+    state = request.app.state
     try:
         version: str | None = await ytdlp.version()
     except (ytdlp.YtdlpError, TimeoutError):
         version = None
-    return {"status": "ok" if version else "degraded", "ytdlp": version}
+    return {
+        "status": "ok" if version else "degraded",
+        "ytdlp": version,
+        "version": __version__,
+        "desktop": bool(getattr(state, "desktop", False)),
+        "ytdlp_update": getattr(state, "ytdlp_update", {"state": "idle", "message": ""}),
+        "app_update": getattr(state, "app_update", None),
+        "quit_requested": bool(getattr(state, "quit_requested", False)),
+    }
+
+
+@app.post("/api/update-ytdlp")
+async def update_ytdlp(request: Request) -> dict:
+    """Run yt-dlp's self-updater on demand (not while something is downloading)."""
+    state = request.app.state
+    if _store(request).count_with_status(RUNNING):
+        raise HTTPException(409, "Wait for the current downloads to finish first")
+    if state.ytdlp_update.get("state") == "running":
+        raise HTTPException(409, "An update is already running")
+    state.ytdlp_update = {"state": "running", "message": "Updating…"}
+    try:
+        report = await ytdlp.update()
+    except (ytdlp.YtdlpError, TimeoutError) as exc:
+        state.ytdlp_update = {"state": "failed", "message": str(exc)}
+        raise HTTPException(502, str(exc)) from exc
+    message = report.splitlines()[-1] if report else "Up to date"
+    state.ytdlp_update = {"state": "done", "message": message}
+    return {"ok": True, "message": message}
+
+
+@app.post("/api/quit")
+async def quit_app(request: Request) -> dict:
+    """Desktop mode: stop the server (the launcher process then exits)."""
+    state = request.app.state
+    if not state.desktop:
+        raise HTTPException(400, "Not running as the desktop app")
+    state.quit_requested = True
+    _manager(request).notify()
+    if state.on_quit:
+        state.on_quit()
+    return {"ok": True}
 
 
 @app.post("/api/probe")

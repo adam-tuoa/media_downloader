@@ -88,3 +88,23 @@ def test_base_args_apply_cookies_and_allowlist(monkeypatch):
     args = ytdlp.base_args()
     assert args[args.index("--cookies-from-browser") + 1] == "firefox"
     assert "--use-extractors" not in args
+
+
+def test_frozen_parent_environment_is_scrubbed_for_children():
+    env = {
+        "PATH": "/usr/bin",
+        "_PYI_ARCHIVE_FILE": "/app/MediaDownloader",
+        "_PYI_APPLICATION_HOME_DIR": "/app/_internal",
+        "_MEIPASS2": "/app/_internal",
+        "LD_LIBRARY_PATH": "/app/_internal",
+        "LD_LIBRARY_PATH_ORIG": "/usr/lib",
+    }
+    cleaned = ytdlp.clean_frozen_env(env)
+    assert not any(k.startswith("_PYI_") or k == "_MEIPASS2" for k in cleaned)
+    assert cleaned["LD_LIBRARY_PATH"] == "/usr/lib" and "LD_LIBRARY_PATH_ORIG" not in cleaned
+    assert cleaned["PATH"] == "/usr/bin"
+    # An empty original means PyInstaller added the variable itself: drop it entirely.
+    assert "LD_LIBRARY_PATH" not in ytdlp.clean_frozen_env(
+        {"LD_LIBRARY_PATH": "/app/_internal", "LD_LIBRARY_PATH_ORIG": ""}
+    )
+    assert "_PYI_ARCHIVE_FILE" not in ytdlp._env()

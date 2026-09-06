@@ -1,6 +1,6 @@
 # Plan — Media Downloader (for Dad)
 
-Status: Phase 3 complete 2026-09-06. **Next: Phase 4 (desktop app).**
+Status: Phase 4 built 2026-09-06 — launcher, token guard, self-update, PyInstaller bundle verified on the Mac; release workflow written. **Next: tag v0.4.0, test the Windows build on the PC, then Dad.**
 
 ## Goal
 
@@ -30,6 +30,12 @@ Primary user: Adam's dad. Audio quality matters; often audio-only (MP3) is all t
     `/usr/local/bin` and it fails in confusing ways ("no such option: --js-runtimes").
   - With Deno on PATH, yt-dlp's default clients return the full format list (53 formats to 2160p);
     no `player_client` overrides needed.
+  - **Bundling** (found 2026-09-06): PyInstaller rewrites every executable it collects, even from `datas` —
+    it thinned the universal `yt-dlp_macos` to a 73 KB stub and re-signed deno/ffmpeg, and yt-dlp then died with
+    "Could not load PyInstaller's embedded PKG archive". `bin/` is therefore copied into the finished bundle
+    verbatim by `scripts/bundle_binaries.py`, never listed in the spec. Also: a frozen parent leaks `_PYI_*`
+    env vars and `LD_LIBRARY_PATH` to children (scrubbed in `ytdlp.clean_frozen_env`), and frozen Python has
+    no CA bundle (`certifi` for the release check).
   - **Audio** (checked 2026-09-06): `-x --audio-format best` keeps the native codec (`.opus` from YouTube, `.mp3`
     from Bandcamp); `--audio-format m4a` on YouTube's `140` stream is a copy (FixupM4a), no re-encode;
     `--embed-thumbnail` needs `--convert-thumbnails jpg` (YouTube serves webp); missing subtitles don't fail.
@@ -120,16 +126,19 @@ Each phase leaves the app working. Tests + CI land in Phase 0 so later phases st
 - [x] Windows "Show file" fix: Explorer's `/select,` must be one quoted argument, else it opens Documents (found on the Win11 box)
 
 ### Phase 4 — Desktop app
-- [ ] Launcher: free port, per-launch token, open browser, single-instance check, `POST /quit`
-- [ ] `vite build` → `backend/app/static/`, served by FastAPI
-- [ ] PyInstaller spec (`onedir`), bundles `bin/` + `static/`
-- [ ] `yt-dlp -U` on launch (background, with timeout) + "Update yt-dlp" button + honest error when YouTube breaks
-- [ ] App-update check against GitHub Releases → banner with link
-- [ ] Release workflow: matrix build on tag → `win-x64.zip`, `linux-x64.AppImage` + `.tar.gz`, `mac-x64.dmg`
-      (Intel macOS runner — Adam's Mac is Intel)
-- [ ] First-run notes (SmartScreen / `chmod +x` / `libfuse2`); smoke-test on clean Windows + Linux VMs
+- [x] Launcher: free port, per-launch token (HttpOnly SameSite=Strict cookie via `/launch`), open browser, single-instance check via `instance.json`, `POST /api/quit`; logs to `app.log`
+- [x] `vite build` → `backend/app/static/`, served by FastAPI
+- [x] PyInstaller spec (`onedir`, windowed), bundles `bin/` + `static/` — 330 MB, builds in ~70 s, verified end to end on the Mac
+- [x] `yt-dlp -U` on launch (queue starts after it) + Settings → "Update now" + "engine isn't working" notice when yt-dlp fails
+- [x] App-update check against GitHub Releases → banner with link
+- [x] Release workflow (`release.yml`): tag `v*` or manual → Windows zip, Linux tar.gz (ubuntu-22.04), macOS zip
+      (`macos-15-intel`); attaches to a GitHub Release with `packaging/RELEASE_NOTES.md`. AppImage deferred (FUSE support cost)
+- [x] First-run notes in the release body and README
+- [ ] Smoke-test the CI-built Windows zip on the PC and the macOS zip on the Mac (Gatekeeper: `xattr -cr`)
 
 ### Phase 5 — Later
+- Linux AppImage (needs libfuse2 on the user's machine; tar.gz ships first)
+- App icon (.icns / .ico) and a signed macOS build (Developer ID, US$99/yr) if the right-click-Open dance bothers anyone
 - Trim/clip ranges (`--download-sections`)
 - `MODE=hosted`: auth, Library + retention, rate limits, Docker with ffmpeg + deno
 - Native window + signed auto-updater via Tauri

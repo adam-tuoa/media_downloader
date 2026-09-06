@@ -11,6 +11,16 @@ per-item progress; files land in a folder of your choice with cover art and tags
 playlists in their own numbered folders. Sites: YouTube, Vimeo, Bandcamp. Next: the desktop app
 (Phase 4).
 
+## Install (the desktop app)
+
+Grab the file for your computer from the
+[latest release](https://github.com/adam-tuoa/youtube_downloader_app/releases/latest) — Windows
+zip, macOS zip or Linux tar.gz — and follow the three-line instructions there. The app opens in
+your browser; **Quit** stops it. It updates its downloader engine (yt-dlp) on every launch and
+tells you when a new app version exists.
+
+Developer notes on how that build is made are under [Packaging](#packaging).
+
 ## Stack
 
 - **Backend:** Python 3.13, FastAPI, driving the official `yt-dlp` executable (not the library —
@@ -131,6 +141,28 @@ scripts/fetch_binaries.py
 PLAN.md                 the plan, decisions, and phase checklists
 ```
 
+## Packaging
+
+`app/launcher.py` is the desktop entry point: it picks a free localhost port, generates a
+per-launch secret, starts uvicorn in-process and opens the browser at `/launch?token=…`, which
+sets an `HttpOnly; SameSite=Strict` cookie and redirects to the app — so other websites can't
+drive the API. A second launch finds the running copy via `instance.json` in the app-data folder.
+Logs go to `app.log` there.
+
+Build locally (any OS builds only for itself; CI builds all three):
+
+```bash
+(cd frontend && npm run build)             # -> backend/app/static
+.venv/bin/pip install -e "backend[build]"  # adds PyInstaller
+.venv/bin/python scripts/fetch_binaries.py
+.venv/bin/pyinstaller --noconfirm packaging/MediaDownloader.spec   # -> dist/
+.venv/bin/python scripts/bundle_binaries.py   # copies bin/ in untouched (PyInstaller would break yt-dlp)
+```
+
+Pushing a tag like `v0.4.0` runs `.github/workflows/release.yml`, which builds Windows, Linux
+and (Intel) macOS bundles and attaches them to a GitHub Release with the instructions from
+`packaging/RELEASE_NOTES.md`. `workflow_dispatch` builds the artifacts without releasing.
+
 ## Configuration
 
 | Variable | Default | Purpose |
@@ -138,6 +170,7 @@ PLAN.md                 the plan, decisions, and phase checklists
 | `MD_BIN_DIR` | `backend/bin` | where the helper binaries live |
 | `MD_DATA_DIR` | per-OS app-data folder | where the jobs database lives |
 | `MD_ALLOW_ANY_SITE` | unset | set to `1` to let yt-dlp try any site it supports (drops the allowlist) |
+| `MD_TOKEN` / `MD_DESKTOP` | set by the launcher | launch secret and desktop-mode switch; leave unset in development |
 | `MD_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | dev-server origins allowed to call the API |
 | `VITE_API_URL` | *(empty)* | backend origin for the UI; empty = same origin / Vite proxy |
 

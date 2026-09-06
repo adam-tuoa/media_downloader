@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getSettings, reveal, saveSettings, type Settings } from '../api';
+import { getHealth, getSettings, reveal, saveSettings, updateYtdlp, type Settings } from '../api';
 import { inputClass } from '../lib/ui';
 
 const LANGUAGES = [
@@ -161,6 +161,43 @@ function SettingsForm({ initial }: { initial: Settings }) {
   );
 }
 
+function EngineUpdate() {
+  const queryClient = useQueryClient();
+  const health = useQuery({ queryKey: ['health'], queryFn: getHealth });
+  const update = useMutation({
+    mutationFn: updateYtdlp,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['health'] }),
+  });
+  const running = health.data?.ytdlp_update?.state === 'running' || update.isPending;
+  return (
+    <div className="space-y-2 border-t border-slate-100 pt-4">
+      <p className="text-sm font-medium text-slate-700">
+        Downloader engine (yt-dlp){health.data?.ytdlp ? ` · ${health.data.ytdlp}` : ''}
+      </p>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          disabled={running}
+          onClick={() => update.mutate()}
+          className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {running ? 'Updating…' : 'Update now'}
+        </button>
+        {update.data && <span className="text-sm text-green-700">{update.data.message}</span>}
+        {update.error && (
+          <span role="alert" className="text-sm text-red-700">
+            {update.error.message}
+          </span>
+        )}
+      </div>
+      <p className="text-xs text-slate-500">
+        If YouTube suddenly stops working, this is the first thing to try. The app also checks on
+        every launch.
+      </p>
+    </div>
+  );
+}
+
 export default function SettingsPanel() {
   const settings = useQuery({ queryKey: ['settings'], queryFn: getSettings });
 
@@ -180,6 +217,7 @@ export default function SettingsPanel() {
       ) : (
         <p className="text-sm text-slate-500">Loading…</p>
       )}
+      <EngineUpdate />
     </section>
   );
 }

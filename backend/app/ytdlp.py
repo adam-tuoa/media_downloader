@@ -103,13 +103,23 @@ class Progress:
 # --- locating things ---------------------------------------------------------------------------
 
 
+def _ensure_executable(path: Path) -> str:
+    """PyInstaller data copies can lose the exec bit; put it back (POSIX only)."""
+    if os.name != "nt" and not os.access(path, os.X_OK):
+        try:
+            path.chmod(path.stat().st_mode | 0o755)
+        except OSError:
+            pass
+    return str(path)
+
+
 def executable(name: str) -> str | None:
     """Path to a bundled helper binary (ffmpeg, deno), falling back to whatever is on PATH."""
     import shutil
 
     bundled = BIN_DIR / f"{name}{_EXE_SUFFIX}"
     if bundled.is_file():
-        return str(bundled)
+        return _ensure_executable(bundled)
     return shutil.which(name)
 
 
@@ -119,7 +129,7 @@ def _ytdlp() -> str:
     if onedir.is_dir():
         for candidate in sorted(onedir.iterdir()):
             if candidate.is_file() and candidate.name.startswith("yt-dlp"):
-                return str(candidate)
+                return _ensure_executable(candidate)
     # Deliberately no PATH fallback: a stale system yt-dlp would fail in confusing ways.
     raise YtdlpError(
         f"Bundled yt-dlp not found in {onedir} - run `python scripts/fetch_binaries.py` first"
@@ -132,7 +142,24 @@ def _env() -> dict[str, str]:
     # Windows consoles default to a legacy code page; make yt-dlp's output UTF-8 everywhere.
     env.setdefault("PYTHONUTF8", "1")
     env.setdefault("PYTHONIOENCODING", "utf-8")
-    return env
+    return clean_frozen_env(env)
+
+
+def clean_frozen_env(env: dict[str, str]) -> dict[str, str]:
+    """Undo what a PyInstaller-frozen parent leaks into child processes.
+
+    yt-dlp's executable is itself a PyInstaller app: with our bootloader's ``_PYI_*`` variables
+    in its environment it tries to read *our* archive and dies ("Could not load PyInstaller's
+    embedded PKG archive"). PyInstaller also points ``LD_LIBRARY_PATH`` at our bundled libraries,
+    which deno/ffmpeg must not load."""
+    cleaned = {k: v for k, v in env.items() if not k.startswith("_PYI_") and k != "_MEIPASS2"}
+    if "LD_LIBRARY_PATH_ORIG" in cleaned:
+        original = cleaned.pop("LD_LIBRARY_PATH_ORIG")
+        if original:
+            cleaned["LD_LIBRARY_PATH"] = original
+        else:
+            cleaned.pop("LD_LIBRARY_PATH", None)
+    return cleaned
 
 
 def base_args() -> list[str]:

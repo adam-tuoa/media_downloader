@@ -144,5 +144,20 @@ export const saveSettings = (body: Partial<Settings>) =>
 export const reveal = (itemId?: string) =>
   request<{ ok: true; path: string }>('POST', '/api/reveal', { item_id: itemId ?? null });
 
+export interface Health {
+  status: 'ok' | 'degraded';
+  ytdlp: string | null;
+  version: string;
+  desktop: boolean;
+  ytdlp_update: { state: 'idle' | 'running' | 'done' | 'failed'; message: string };
+  app_update: { latest: string; url: string } | null;
+  quit_requested: boolean;
+}
+
+export const getHealth = () => request<Health>('GET', '/api/health');
+export const updateYtdlp = () =>
+  request<{ ok: true; message: string }>('POST', '/api/update-ytdlp');
+export const quitApp = () => request<{ ok: true }>('POST', '/api/quit');
+
 export const isActive = (status: ItemStatus) => status === 'queued' || status === 'running';
 export const jobHasActive = (job: Job) => job.items.some((i) => isActive(i.status));
