@@ -1,5 +1,6 @@
 ; Inno Setup script - wraps build\windows (see scripts/build_windows.py) into a per-user installer.
-; Build: "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\windows.iss  (from the repo root)
+; Build: "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\windows.iss
+; Output: MediaDownloader-windows-x64-setup.exe in the repo root.
 
 #define AppName "Media Downloader"
 #define AppVersion GetEnv("APP_VERSION")
@@ -8,6 +9,8 @@
 #endif
 
 [Setup]
+; Paths below are relative to the repo root, not to this file's folder.
+SourceDir=..
 AppId={{7B2E1C1A-5D3B-4B7F-9C1E-6D0F2A9B8E11}
 AppName={#AppName}
 AppVersion={#AppVersion}
