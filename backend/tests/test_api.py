@@ -74,7 +74,7 @@ def test_job_lifecycle(client, fake, tmp_path):
 
     done = wait_for(client, job["id"], "done")
     assert done["items"][0]["title"] == "Fake video watch?v=v1000000000"
-    assert done["items"][0]["file_path"].endswith("[watch?v=v1000000000].mp4")
+    assert done["items"][0]["file_path"].endswith("[v1000000000].mp4")
 
     listed = client.get("/api/jobs").json()
     assert [j["id"] for j in listed] == [job["id"]]

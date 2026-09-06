@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from pathlib import Path
 
 from app import ytdlp
@@ -18,6 +19,12 @@ INFO = {
         {"format_id": "22", "vcodec": "avc1", "acodec": "mp4a", "ext": "mp4", "height": 720},
     ],
 }
+
+
+def _tag(url: str) -> str:
+    """A filename-safe id from a URL: the last path or query value, punctuation stripped
+    (Windows forbids ? : * " < > | in names, and normalised YouTube URLs contain '?v=')."""
+    return re.sub(r"[^A-Za-z0-9_-]+", "_", url.rsplit("/", 1)[-1].split("=")[-1])
 
 
 class FakeYtdlp:
@@ -81,7 +88,7 @@ class FakeYtdlp:
         if on_progress:
             on_progress(ytdlp.Progress("postprocess", "started", postprocessor="Merger"))
         ext = "mp3" if "-x" in format_args else "mp4"
-        path = Path(out_dir) / f"Fake video [{url.rsplit('/', 1)[-1]}].{ext}"
+        path = Path(out_dir) / f"Fake video [{_tag(url)}].{ext}"
         path.write_bytes(b"media")
         return path
 
