@@ -30,6 +30,10 @@ Primary user: Adam's dad. Audio quality matters; often audio-only (MP3) is all t
     `/usr/local/bin` and it fails in confusing ways ("no such option: --js-runtimes").
   - With Deno on PATH, yt-dlp's default clients return the full format list (53 formats to 2160p);
     no `player_client` overrides needed.
+  - **Processes run via plain `subprocess` in worker threads, not asyncio subprocesses.** On Windows,
+    uvicorn `--reload` uses a SelectorEventLoop, which can't spawn processes (found on the Windows 11 box,
+    2026-09-06). Threads work on every loop; progress callbacks are marshalled back onto the loop.
+    Backend CI runs on Windows too, with a fake-yt-dlp test suite for the plumbing.
 - **Python 3.13** (Adam: 3.13.5 at `/usr/local/bin/python3`). **Frontend:** Vite 7, React 19, TypeScript,
   Tailwind v4, TanStack Query, shadcn/ui.
 - **Sites:** extractor allowlist — YouTube + `youtube:tab` (playlists), Vimeo, Bandcamp (+ album).

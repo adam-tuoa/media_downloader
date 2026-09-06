@@ -4,3 +4,6 @@ extend-exclude = [".venv", "frontend"]
 
 [lint]
 select = ["E", "F", "I", "B", "UP", "ASYNC"]
+
+[lint.isort]
+known-first-party = ["app"]

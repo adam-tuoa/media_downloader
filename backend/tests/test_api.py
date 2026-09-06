@@ -2,8 +2,9 @@ from pathlib import Path
 from urllib.parse import unquote
 
 import pytest
-from app import main, ytdlp
 from fastapi.testclient import TestClient
+
+from app import main, ytdlp
 
 
 @pytest.fixture
