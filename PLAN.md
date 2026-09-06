@@ -129,12 +129,19 @@ Each phase leaves the app working. Tests + CI land in Phase 0 so later phases st
   x86_64 (Intel CI runner); add arm64 later if anyone needs it.
 
 ## Risks
-- **First launch after install or a yt-dlp update takes ~20-30 s on macOS** (security scan of new binaries) —
-  Phase 4 must show a "first-time setup" message rather than look hung.
+- **First launch after install or a yt-dlp update takes ~20-30 s on macOS only** (Gatekeeper scanning the new
+  binaries; Windows 11 measured as "not long", 2026-09-06). The macOS build should show a "first-time setup"
+  message rather than look hung; Windows/Linux need nothing.
 - **YouTube churn** — mitigated by yt-dlp self-update + Deno; still expect occasional breakage. Clear in-app error + update button.
 - **Unsigned binaries** — one-time OS warnings; document. Apple signing (US$99/yr) optional later.
 - **AV false positives** on `yt-dlp.exe` / PyInstaller output on Windows — `onedir` reduces; document.
 - **Local API exposure** — token + Origin guard from day one of Phase 4.
+
+## Windows 11 dry run (2026-09-06) — passed
+Python 3.14 + Node LTS (winget) on Adam's Windows 11 box: `fetch_binaries.py` fetched the win64 yt-dlp/deno/ffmpeg
+builds without incident, `yt-dlp.exe`'s first launch was quick, no SmartScreen/Defender prompts (script-downloaded
+files carry no mark-of-the-web), probes and downloads work with and without `--reload` after the threaded-subprocess
+fix. The only prompt seen was UAC for the Node installer.
 
 ## Environment notes (Adam's Mac, 2026-09-06)
 - Intel Mac, macOS Sequoia 15.7.9. Python 3.13.5 at `/usr/local/bin/python3` (3.12.11 also present). Existing `.venv` is pyenv 3.9.1 → delete and rebuild.
