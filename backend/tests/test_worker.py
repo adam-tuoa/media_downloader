@@ -3,7 +3,7 @@ import asyncio
 import pytest
 
 from app import worker
-from app.store import CANCELLED, DONE, ERROR, QUEUED, RUNNING, Store
+from app.store import CANCELLED, DONE, ERROR, QUEUED, RUNNING, NewItem, Store
 from tests import fakes
 
 
@@ -62,7 +62,7 @@ async def test_audio_job_uses_extract_args_and_no_overwrite(store, fake, tmp_pat
         await wait_until(lambda: store.get_item(job.items[0].id).status == DONE)
     finally:
         await manager.stop()
-    assert fake.calls[0] == [
+    assert fake.calls[0][:7] == [
         "-f",
         "bestaudio/best",
         "-x",
@@ -71,6 +71,7 @@ async def test_audio_job_uses_extract_args_and_no_overwrite(store, fake, tmp_pat
         "--audio-quality",
         "192K",
     ]
+    assert "--embed-thumbnail" in fake.calls[0] and "--embed-metadata" in fake.calls[0]
     item = store.get_item(job.items[0].id)
     assert item.file_path.endswith("Fake video [v1] (1).mp3")
     assert (tmp_path / "out" / "Fake video [v1].mp3").read_bytes() == b"old"
@@ -187,3 +188,62 @@ def test_stage_labels_follow_the_stream(store):
     assert store.get_item(item_id).stage == "Downloading audio"
     on_progress(worker.ytdlp.Progress("download", "downloading", 1, 10))
     assert store.get_item(item_id).stage == "Downloading"
+
+
+async def test_collection_items_get_a_folder_and_numbers(store, fake, tmp_path):
+    manager = worker.Manager(store)
+    await manager.start()
+    try:
+        job = store.create_job(
+            "audio",
+            {"audio_format": "best"},
+            [
+                NewItem("https://x/v1", collection="Live: At The Zoo?", collection_index=1),
+                NewItem("https://x/v2", collection="Live: At The Zoo?", collection_index=12),
+            ],
+        )
+        manager.notify()
+        await wait_until(lambda: all(store.get_item(i.id).status == DONE for i in job.items))
+    finally:
+        await manager.stop()
+    folder = tmp_path / "out" / "Live_ At The Zoo_"
+    assert sorted(p.name for p in folder.iterdir()) == [
+        "01 - Fake video [v1].mp3",
+        "12 - Fake video [v2].mp3",
+    ]
+    assert fake.calls[0][:5] == ["-f", "bestaudio/best", "-x", "--audio-format", "best"]
+
+
+def test_destination_and_safe_name(tmp_path):
+    from app.store import Item
+
+    plain = Item("i", "j", 0, "u", QUEUED)
+    assert worker.destination(tmp_path, plain) == (tmp_path, "%(title)s.%(ext)s")
+    numbered = Item("i", "j", 0, "u", QUEUED, collection="A/B", collection_index=3)
+    assert worker.destination(tmp_path, numbered) == (
+        tmp_path / "A_B",
+        "03 - %(track,title)s.%(ext)s",
+    )
+    unnumbered = Item("i", "j", 0, "u", QUEUED, collection="Mix")
+    assert worker.destination(tmp_path, unnumbered) == (
+        tmp_path / "Mix",
+        "%(track,title)s.%(ext)s",
+    )
+
+    assert worker.safe_name('  AC/DC: "Live" <2024>?  ') == "AC_DC_ _Live_ _2024_"
+    assert worker.safe_name("trailing dots...") == "trailing dots"
+    assert worker.safe_name("") == "Untitled" and worker.safe_name(None, "X") == "X"
+    assert len(worker.safe_name("x" * 500)) == 120
+
+
+def test_build_args_include_tags_and_subtitles(bbb_info):
+    from app.store import Job
+
+    video = Job("j", 0, "video", {"height": 720, "subtitles": True})
+    args = worker.build_download_args(video, bbb_info)
+    assert "--embed-thumbnail" in args and "--embed-subs" in args
+    quiet = Job("j", 0, "video", {"height": 720})
+    assert "--embed-subs" not in worker.build_download_args(quiet, bbb_info)
+    audio = Job("j", 0, "audio", {"audio_format": "m4a"})
+    args = worker.build_download_args(audio, bbb_info)
+    assert args[1].startswith("bestaudio[ext=m4a]") and "--embed-metadata" in args

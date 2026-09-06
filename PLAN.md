@@ -1,6 +1,6 @@
 # Plan — Media Downloader (for Dad)
 
-Status: Phase 2 complete 2026-09-06. **Next: Phase 3.**
+Status: Phase 3 complete 2026-09-06. **Next: Phase 4 (desktop app).**
 
 ## Goal
 
@@ -30,6 +30,9 @@ Primary user: Adam's dad. Audio quality matters; often audio-only (MP3) is all t
     `/usr/local/bin` and it fails in confusing ways ("no such option: --js-runtimes").
   - With Deno on PATH, yt-dlp's default clients return the full format list (53 formats to 2160p);
     no `player_client` overrides needed.
+  - **Audio** (checked 2026-09-06): `-x --audio-format best` keeps the native codec (`.opus` from YouTube, `.mp3`
+    from Bandcamp); `--audio-format m4a` on YouTube's `140` stream is a copy (FixupM4a), no re-encode;
+    `--embed-thumbnail` needs `--convert-thumbnails jpg` (YouTube serves webp); missing subtitles don't fail.
   - **Vimeo** (checked 2026-09-06): every yt-dlp client needs a login now — public videos included — so
     Vimeo support means browser cookies. Bandcamp and YouTube work anonymously.
   - **Processes run via plain `subprocess` in worker threads, not asyncio subprocesses.** On Windows,
@@ -106,12 +109,13 @@ Each phase leaves the app working. Tests + CI land in Phase 0 so later phases st
 - [x] `MD_ALLOW_ANY_SITE=1` escape hatch for Adam's own use
 
 ### Phase 3 — Audio & quality
-- [ ] Audio modes: **Original** (Opus → `.opus`, or `.m4a` when source is AAC), **M4A** (AAC), **MP3** 320/192/128
+- [x] Audio modes: **Original** (Opus → `.opus`, or `.m4a` when source is AAC), **M4A** (AAC), **MP3** 320/192/128
       — labelled plainly ("MP3 320: most compatible; can't be better than the original")
-- [ ] Tags + cover art: `--embed-metadata --embed-thumbnail --convert-thumbnails jpg`, `--parse-metadata` for artist/title
-- [ ] Video ladder 360p → 2160p: prefer h264+aac MP4 ≤ 1080p, vp9/av1 above; plain labels
-- [ ] Optional subtitles (`--write-subs --embed-subs`)
-- [ ] Bandcamp album → one folder per album, track numbers in filenames
+- [x] Tags + cover art: `--embed-metadata --embed-thumbnail --convert-thumbnails jpg`, `--parse-metadata` for artist/title
+- [x] Video ladder 360p → 2160p (4K option in the UI): prefer h264+aac MP4 ≤ 1080p, vp9/av1 above; plain labels
+- [x] Optional subtitles (`--write-subs --embed-subs`)
+- [x] Any playlist/album → one folder per collection, `01 - ` numbering (`%(track,title)s`); `[id]` suffix dropped from filenames
+- [x] Windows "Show file" fix: Explorer's `/select,` must be one quoted argument, else it opens Documents (found on the Win11 box)
 
 ### Phase 4 — Desktop app
 - [ ] Launcher: free port, per-launch token, open browser, single-instance check, `POST /quit`

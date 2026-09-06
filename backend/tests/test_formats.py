@@ -127,3 +127,27 @@ def test_size_estimated_from_bitrate_when_missing():
     assert opt.audio_format_id == "a"
     assert opt.filesize == int(800 * 1000 / 8 * 100) + int(128 * 1000 / 8 * 100)
     assert opt.label == "720p · 11 MB"  # 11,600,000 bytes
+
+
+def test_audio_formats():
+    assert formats.audio_download_args("mp3", 192)[-3:] == ["mp3", "--audio-quality", "192K"]
+    m4a = formats.audio_download_args("m4a")
+    assert m4a[1].startswith("bestaudio[ext=m4a]/") and m4a[-2:] == ["--audio-format", "m4a"]
+    assert formats.audio_download_args("best") == [
+        "-f",
+        "bestaudio/best",
+        "-x",
+        "--audio-format",
+        "best",
+    ]
+
+
+def test_tag_and_subtitle_args():
+    base = ["--embed-metadata", "--embed-thumbnail", "--convert-thumbnails", "jpg"]
+    assert formats.tag_args({"title": "Me at the zoo"}, "audio") == base
+    assert formats.tag_args({"title": "Artist - Song", "artist": "Artist"}, "audio") == base
+    assert formats.tag_args({"title": "Artist - Song"}, "video") == base
+    parsed = formats.tag_args({"title": "Artist - Song (Official)"}, "audio")
+    assert parsed[-2:] == ["--parse-metadata", "title:%(artist)s - %(title)s"]
+    subs = formats.subtitle_args()
+    assert subs[0] == "--write-subs" and "--embed-subs" in subs and "en" in subs[2]

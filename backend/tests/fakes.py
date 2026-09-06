@@ -88,7 +88,14 @@ class FakeYtdlp:
         if on_progress:
             on_progress(ytdlp.Progress("postprocess", "started", postprocessor="Merger"))
         ext = "mp3" if "-x" in format_args else "mp4"
-        path = Path(out_dir) / f"Fake video [{_tag(url)}].{ext}"
+        title = f"Fake video [{_tag(url)}]"
+        name = (
+            Path(output_template)
+            .name.replace("%(track,title)s", title)
+            .replace("%(title)s", title)
+            .replace("%(ext)s", ext)
+        )
+        path = Path(out_dir) / name
         path.write_bytes(b"media")
         return path
 

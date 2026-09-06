@@ -26,6 +26,8 @@ const base: Item = {
   created_at: 0,
   started_at: null,
   finished_at: null,
+  collection: null,
+  collection_index: null,
 };
 
 describe('describe / barWidth', () => {

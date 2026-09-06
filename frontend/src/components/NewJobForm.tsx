@@ -3,31 +3,29 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   createJob,
   inspectLinks,
-  type AudioBitrate,
   type InspectResult,
   type JobCreate,
   type Kind,
   type NewLink,
 } from '../api';
 import { allEntryUrls, collectLinks, needsReview, parseLinks } from '../lib/links';
+import {
+  AUDIO_CHOICES,
+  DEFAULT_AUDIO_CHOICE,
+  VIDEO_QUALITIES,
+  audioChoice,
+  videoHeight,
+} from '../lib/options';
 import { inputClass, segmentClass } from '../lib/ui';
 import ReviewPanel from './ReviewPanel';
-
-const VIDEO_QUALITIES: { value: string; label: string; height: number | null }[] = [
-  { value: 'best', label: 'Best available', height: null },
-  { value: '1080', label: '1080p', height: 1080 },
-  { value: '720', label: '720p', height: 720 },
-  { value: '480', label: '480p', height: 480 },
-  { value: '360', label: '360p (small)', height: 360 },
-];
-const BITRATES: AudioBitrate[] = [320, 192, 128];
 
 export default function NewJobForm() {
   const queryClient = useQueryClient();
   const [text, setText] = useState('');
   const [kind, setKind] = useState<Kind>('video');
   const [quality, setQuality] = useState('best');
-  const [bitrate, setBitrate] = useState<AudioBitrate>(320);
+  const [subtitles, setSubtitles] = useState(false);
+  const [audio, setAudio] = useState(DEFAULT_AUDIO_CHOICE);
   const [review, setReview] = useState<InspectResult | null>(null);
 
   const create = useMutation({
@@ -39,14 +37,16 @@ export default function NewJobForm() {
     },
   });
 
-  const buildJob = (chosen: NewLink[]): JobCreate =>
-    kind === 'video'
-      ? {
-          links: chosen,
-          kind,
-          height: VIDEO_QUALITIES.find((q) => q.value === quality)?.height ?? null,
-        }
-      : { links: chosen, kind, audio_format: 'mp3', audio_bitrate: bitrate };
+  const buildJob = (chosen: NewLink[]): JobCreate => {
+    if (kind === 'video') return { links: chosen, kind, height: videoHeight(quality), subtitles };
+    const choice = audioChoice(audio);
+    return {
+      links: chosen,
+      kind,
+      audio_format: choice.format,
+      audio_bitrate: choice.bitrate ?? 320,
+    };
+  };
 
   // Step one: ask the backend what each line is. Plain videos go straight to the queue;
   // playlists or problems get a review step first.
@@ -139,27 +139,37 @@ export default function NewJobForm() {
           <p className="text-xs text-slate-500">
             If a video isn’t available at that size, you get the next one down.
           </p>
+          <label className="flex items-center gap-2 pt-1 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={subtitles}
+              onChange={(e) => setSubtitles(e.target.checked)}
+              className="h-4 w-4"
+            />
+            Include English subtitles when the video has them
+          </label>
         </div>
       ) : (
         <div className="space-y-2">
-          <label htmlFor="bitrate" className="block text-sm font-medium text-slate-700">
-            MP3 quality
+          <label htmlFor="audio" className="block text-sm font-medium text-slate-700">
+            Audio format
           </label>
           <select
-            id="bitrate"
-            value={bitrate}
-            onChange={(e) => setBitrate(Number(e.target.value) as AudioBitrate)}
+            id="audio"
+            value={audio}
+            onChange={(e) => setAudio(e.target.value)}
             className={inputClass}
           >
-            {BITRATES.map((b) => (
-              <option key={b} value={b}>
-                {b} kbps{b === 320 ? ' — plays everywhere' : ''}
+            {AUDIO_CHOICES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
               </option>
             ))}
           </select>
+          <p className="text-xs text-slate-500">{audioChoice(audio).note}</p>
           <p className="text-xs text-slate-500">
-            An MP3 can’t sound better than the original (usually about 130 kbps), whichever number
-            you pick.
+            Cover art and title/artist/album tags are always added. Playlists and albums go into
+            their own folder, numbered.
           </p>
         </div>
       )}

@@ -69,13 +69,16 @@ class LinkIn(BaseModel):
     url: str = Field(min_length=1)
     title: str | None = None
     thumbnail: str | None = None
+    collection: str | None = Field(default=None, max_length=300)
+    collection_index: int | None = Field(default=None, ge=1)
 
 
 class JobCreate(BaseModel):
     links: list[LinkIn] = Field(min_length=1, max_length=500)
     kind: Literal["video", "audio"] = "video"
     height: int | None = Field(default=None, ge=144, description="video: largest height allowed")
-    audio_format: Literal["mp3"] = "mp3"
+    subtitles: bool = False
+    audio_format: Literal["mp3", "m4a", "best"] = "mp3"
     audio_bitrate: Literal[128, 192, 320] = 320
 
 
@@ -212,7 +215,7 @@ async def list_jobs(request: Request) -> list[dict]:
 @app.post("/api/jobs", status_code=201)
 async def create_job(req: JobCreate, request: Request) -> dict:
     options = (
-        {"height": req.height}
+        {"height": req.height, "subtitles": req.subtitles}
         if req.kind == "video"
         else {"audio_format": req.audio_format, "audio_bitrate": req.audio_bitrate}
     )
@@ -227,7 +230,15 @@ async def create_job(req: JobCreate, request: Request) -> dict:
             raise HTTPException(422, "Playlist links need to be expanded first (POST /api/links)")
         if link.url not in seen:
             seen.add(link.url)
-            items.append(NewItem(url=link.url, title=entry.title, thumbnail=entry.thumbnail))
+            items.append(
+                NewItem(
+                    url=link.url,
+                    title=entry.title,
+                    thumbnail=entry.thumbnail,
+                    collection=entry.collection,
+                    collection_index=entry.collection_index,
+                )
+            )
     job = _store(request).create_job(req.kind, options, items)
     _manager(request).notify()
     return job.to_dict()

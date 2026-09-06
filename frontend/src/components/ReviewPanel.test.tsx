@@ -51,6 +51,10 @@ describe('review helpers', () => {
     ]);
     expect(collectLinks(result, new Set(['https://www.youtube.com/watch?v=e2']))).toHaveLength(2);
     expect(collectLinks(result, new Set())[0].title).toBeNull();
+    const second = collectLinks(result, all)[2];
+    expect(second.collection).toBe('Mix');
+    expect(second.collection_index).toBe(2);
+    expect(collectLinks(result, all)[0].collection).toBeUndefined();
   });
   it('labels truncated playlists', () => {
     expect(playlistLabel(result.links[1])).toBe('3 entries');

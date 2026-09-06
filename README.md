@@ -5,9 +5,11 @@ A small, friendly downloader for YouTube (Vimeo and Bandcamp coming) built on
 **Audio (MP3)**, get the file. Heading towards a double-click desktop app that batch-downloads
 lists of links — see [PLAN.md](PLAN.md) for where this is going and what's done.
 
-**Status:** Phase 2 complete — paste links (videos, playlists, albums), pick the entries you
-want, choose Video (quality) or Audio (MP3), watch per-item progress, files land in a folder of
-your choice. Sites: YouTube, Vimeo, Bandcamp. Better audio formats and tagging are next (Phase 3).
+**Status:** Phase 3 complete — paste links (videos, playlists, albums), pick the entries you
+want, choose Video (quality, optional subtitles) or Audio (MP3 / M4A / best original), watch
+per-item progress; files land in a folder of your choice with cover art and tags, albums and
+playlists in their own numbered folders. Sites: YouTube, Vimeo, Bandcamp. Next: the desktop app
+(Phase 4).
 
 ## Stack
 
@@ -97,6 +99,19 @@ the UI polls once a second while anything is active. Interrupted items are re-qu
 |---|---|
 | Jobs database | macOS `~/Library/Application Support/MediaDownloader/`, Windows `%LOCALAPPDATA%\MediaDownloader\`, Linux `~/.local/share/MediaDownloader/` — override with `MD_DATA_DIR` |
 | Downloads (default) | `<your Downloads folder>/Media Downloader/` — change it in Settings |
+
+## Audio formats
+
+| Choice | What you get | When |
+|---|---|---|
+| MP3 320 / 192 / 128 | Transcoded MP3 with cover art and tags | Plays on anything. Can't beat the source (~130 kbps on YouTube) — 320 is about compatibility |
+| M4A (AAC) | YouTube's AAC stream copied as-is, no re-encode | Apple Music, iPhones, cars |
+| Best original | The site's best stream untouched: Opus from YouTube, MP3 from Bandcamp | Highest quality; Opus needs VLC or a modern player |
+
+Every download gets `--embed-metadata --embed-thumbnail` (title, artist, album, date, cover).
+Bandcamp supplies full album/track tags; for YouTube videos titled "Artist - Song" the two halves
+become the artist and title tags when YouTube itself gives no artist. Entries chosen from a
+playlist or album land in `<output>/<playlist name>/01 - Title.ext`.
 
 ## Layout
 

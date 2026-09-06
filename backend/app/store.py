@@ -40,7 +40,9 @@ CREATE TABLE IF NOT EXISTS items (
     error TEXT,
     created_at REAL NOT NULL,
     started_at REAL,
-    finished_at REAL
+    finished_at REAL,
+    collection TEXT,
+    collection_index INTEGER
 );
 CREATE INDEX IF NOT EXISTS items_job ON items(job_id, position);
 CREATE INDEX IF NOT EXISTS items_status ON items(status);
@@ -76,6 +78,12 @@ class Item:
     created_at: float = 0.0
     started_at: float | None = None
     finished_at: float | None = None
+    collection: str | None = None  # playlist/album this came from -> its own folder
+    collection_index: int | None = None  # 1-based position in that collection -> "01 - " prefix
+
+
+# Columns added after the first release; older databases get them on open.
+_ADDED_COLUMNS = (("collection", "TEXT"), ("collection_index", "INTEGER"))
 
 
 @dataclass
@@ -98,6 +106,8 @@ class NewItem:
     url: str
     title: str | None = None
     thumbnail: str | None = None
+    collection: str | None = None
+    collection_index: int | None = None
 
 
 def new_id() -> str:
@@ -111,6 +121,14 @@ class Store:
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA foreign_keys=ON")
         self.conn.executescript(SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        existing = {row["name"] for row in self.conn.execute("PRAGMA table_info(items)")}
+        with self.conn:
+            for column, declaration in _ADDED_COLUMNS:
+                if column not in existing:
+                    self.conn.execute(f"ALTER TABLE items ADD COLUMN {column} {declaration}")
 
     def close(self) -> None:
         self.conn.close()
@@ -128,11 +146,22 @@ class Store:
                 (job_id, now, kind, json.dumps(options)),
             )
             self.conn.executemany(
-                "INSERT INTO items"
-                " (id, job_id, position, url, status, title, thumbnail, created_at)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO items (id, job_id, position, url, status, title, thumbnail,"
+                " created_at, collection, collection_index)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [
-                    (new_id(), job_id, i, it.url, QUEUED, it.title, it.thumbnail, now)
+                    (
+                        new_id(),
+                        job_id,
+                        i,
+                        it.url,
+                        QUEUED,
+                        it.title,
+                        it.thumbnail,
+                        now,
+                        it.collection,
+                        it.collection_index,
+                    )
                     for i, it in enumerate(new_items)
                 ],
             )

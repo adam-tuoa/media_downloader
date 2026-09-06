@@ -1,4 +1,5 @@
 import time
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -70,7 +71,7 @@ def test_job_lifecycle(client, fake, tmp_path):
         "https://www.youtube.com/watch?v=v2000000000",
     ]  # normalised, de-duplicated
     assert job["items"][0]["title"] == "Prefilled"
-    assert job["options"] == {"height": 720}
+    assert job["options"] == {"height": 720, "subtitles": False}
 
     done = wait_for(client, job["id"], "done")
     assert done["items"][0]["title"] == "Fake video watch?v=v1000000000"
@@ -213,3 +214,50 @@ def test_reveal_opens_folder_or_file(client, fake, monkeypatch, tmp_path):
     done = wait_for(client, job["id"], "done")
     client.post("/api/reveal", json={"item_id": done["items"][0]["id"]})
     assert opened[-1].endswith(".mp4")
+
+
+def test_job_options_and_collections(client, fake, tmp_path):
+    r = client.post(
+        "/api/jobs",
+        json={
+            "links": [
+                {
+                    "url": "https://youtu.be/v1000000000",
+                    "collection": "Mixtape",
+                    "collection_index": 1,
+                },
+                {
+                    "url": "https://youtu.be/v2000000000",
+                    "collection": "Mixtape",
+                    "collection_index": 2,
+                },
+            ],
+            "kind": "audio",
+            "audio_format": "m4a",
+        },
+    )
+    assert r.status_code == 201, r.text
+    job = r.json()
+    assert job["options"] == {"audio_format": "m4a", "audio_bitrate": 320}
+    assert job["items"][1]["collection"] == "Mixtape" and job["items"][1]["collection_index"] == 2
+    done = wait_for(client, job["id"], "done")
+    assert Path(done["items"][0]["file_path"]).parts[-2:] == (
+        "Mixtape",
+        "01 - Fake video [v1000000000].mp3",
+    )
+    assert (tmp_path / "out" / "Mixtape").is_dir()
+
+    r = client.post(
+        "/api/jobs",
+        json={
+            "links": [{"url": "https://youtu.be/v3000000000"}],
+            "kind": "video",
+            "subtitles": True,
+        },
+    )
+    assert r.json()["options"] == {"height": None, "subtitles": True}
+    bad = client.post(
+        "/api/jobs",
+        json={"links": [{"url": "https://youtu.be/v3000000000"}], "audio_format": "flac"},
+    )
+    assert bad.status_code == 422

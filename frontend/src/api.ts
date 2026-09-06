@@ -22,13 +22,20 @@ export interface Item {
   created_at: number;
   started_at: number | null;
   finished_at: number | null;
+  collection: string | null;
+  collection_index: number | null;
 }
 
 export interface Job {
   id: string;
   created_at: number;
   kind: Kind;
-  options: { height?: number | null; audio_format?: string; audio_bitrate?: number };
+  options: {
+    height?: number | null;
+    subtitles?: boolean;
+    audio_format?: AudioFormat;
+    audio_bitrate?: number;
+  };
   items: Item[];
 }
 
@@ -42,11 +49,16 @@ export interface NewLink {
   url: string;
   title?: string | null;
   thumbnail?: string | null;
+  /** Playlist/album the link came from - gets its own folder and "01 - " numbering. */
+  collection?: string | null;
+  collection_index?: number | null;
 }
 
+export type AudioFormat = 'mp3' | 'm4a' | 'best';
+
 export type JobCreate =
-  | { links: NewLink[]; kind: 'video'; height: number | null }
-  | { links: NewLink[]; kind: 'audio'; audio_format: 'mp3'; audio_bitrate: AudioBitrate };
+  | { links: NewLink[]; kind: 'video'; height: number | null; subtitles: boolean }
+  | { links: NewLink[]; kind: 'audio'; audio_format: AudioFormat; audio_bitrate: AudioBitrate };
 
 export interface LinkEntry {
   url: string;

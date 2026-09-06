@@ -169,16 +169,50 @@ def video_download_args(option: VideoOption) -> list[str]:
     return ["-f", spec, "--merge-output-format", "mp4"]
 
 
+AUDIO_FORMATS = ("mp3", "m4a", "best")
+
+
 def audio_download_args(audio_format: str = "mp3", bitrate: int = 320) -> list[str]:
+    """How to get audio out.
+
+    mp3  - transcode (compatibility); can't exceed the source's quality
+    m4a  - YouTube's AAC stream copied as-is when available (no re-encode), else transcoded
+    best - the site's best stream in its native codec, untouched
+           (Opus from YouTube, MP3 from Bandcamp)
+    """
+    if audio_format == "m4a":
+        return [
+            "-f",
+            "bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/bestaudio/best",
+            "-x",
+            "--audio-format",
+            "m4a",
+        ]
+    if audio_format == "best":
+        return ["-f", "bestaudio/best", "-x", "--audio-format", "best"]
     return [
         "-f",
         "bestaudio/best",
         "-x",
         "--audio-format",
-        audio_format,
+        "mp3",
         "--audio-quality",
         f"{bitrate}K",
     ]
+
+
+def tag_args(info: Info, kind: str) -> list[str]:
+    """Embed title/artist/album/date tags and cover art. For audio from sites that give no artist
+    (YouTube outside its music catalogue), split an "Artist - Title" name when there is one."""
+    args = ["--embed-metadata", "--embed-thumbnail", "--convert-thumbnails", "jpg"]
+    if kind == "audio" and not info.get("artist") and " - " in str(info.get("title") or ""):
+        args += ["--parse-metadata", "title:%(artist)s - %(title)s"]
+    return args
+
+
+def subtitle_args(languages: str = "en.*,en") -> list[str]:
+    """Embed real (not auto-generated) subtitles when the video has them; silent when it doesn't."""
+    return ["--write-subs", "--sub-langs", languages, "--embed-subs"]
 
 
 def summary(info: Info) -> dict[str, Any]:

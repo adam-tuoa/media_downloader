@@ -35,6 +35,12 @@ export function barWidth(item: Item): number {
 }
 
 export function describeJob(job: Job): string {
-  if (job.kind === 'audio') return `Audio · MP3 ${job.options.audio_bitrate ?? 320} kbps`;
-  return job.options.height ? `Video · up to ${job.options.height}p` : 'Video · best available';
+  if (job.kind === 'audio') {
+    const format = job.options.audio_format ?? 'mp3';
+    if (format === 'm4a') return 'Audio · M4A (original quality)';
+    if (format === 'best') return 'Audio · best original';
+    return `Audio · MP3 ${job.options.audio_bitrate ?? 320} kbps`;
+  }
+  const quality = job.options.height ? `up to ${job.options.height}p` : 'best available';
+  return `Video · ${quality}${job.options.subtitles ? ' · subtitles' : ''}`;
 }

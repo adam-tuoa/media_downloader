@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import shutil
 import threading
 import time
@@ -26,12 +27,25 @@ MAX_CONCURRENCY = 4
 STAGE_LABELS = {
     "Merger": "Merging video and audio",
     "ExtractAudio": "Converting audio",
-    "MoveFiles": "Finishing",
-    "FFmpegMetadata": "Adding tags",
+    "FixupM4a": "Finishing audio",
+    "ThumbnailsConvertor": "Preparing cover art",
+    "MetadataParser": "Reading tags",
+    "Metadata": "Adding tags",
     "EmbedThumbnail": "Adding cover art",
+    "EmbedSubtitle": "Adding subtitles",
+    "MoveFiles": "Finishing",
     "FFmpegVideoRemuxer": "Remuxing",
     "FFmpegVideoConvertor": "Converting video",
 }
+
+_ILLEGAL_NAME_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]+')
+
+
+def safe_name(text: str | None, fallback: str = "Untitled") -> str:
+    """A folder/file name that is legal on Windows, macOS and Linux."""
+    cleaned = _ILLEGAL_NAME_CHARS.sub("_", text or "")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" .")
+    return cleaned[:120] or fallback
 
 
 @dataclass(frozen=True)
@@ -51,13 +65,31 @@ def current_settings(store: Store) -> Settings:
 
 def build_download_args(job: Job, info: dict) -> list[str]:
     if job.kind == "audio":
-        return formats.audio_download_args(
+        args = formats.audio_download_args(
             job.options.get("audio_format", "mp3"), int(job.options.get("audio_bitrate", 320))
         )
+        return args + formats.tag_args(info, "audio")
     options = formats.video_options(info)
     if not options:
         raise ytdlp.YtdlpError("No video streams found for this link - try Audio instead")
-    return formats.video_download_args(formats.pick_height(options, job.options.get("height")))
+    args = formats.video_download_args(formats.pick_height(options, job.options.get("height")))
+    args += formats.tag_args(info, "video")
+    if job.options.get("subtitles"):
+        args += formats.subtitle_args()
+    return args
+
+
+def destination(output_dir: Path, item: Item) -> tuple[Path, str]:
+    """(folder the finished file goes in, yt-dlp filename template) for one item.
+
+    Items from a playlist/album get the collection's own folder and a "01 - " prefix, using the
+    track name when the site provides one (Bandcamp) and the title otherwise."""
+    if item.collection:
+        folder = output_dir / safe_name(item.collection)
+        if item.collection_index:
+            return folder, f"{item.collection_index:02d} - %(track,title)s.%(ext)s"
+        return folder, "%(track,title)s.%(ext)s"
+    return output_dir, "%(title)s.%(ext)s"
 
 
 def move_into(path: Path, dest_dir: Path) -> Path:
@@ -155,15 +187,16 @@ class Manager:
             args = build_download_args(job, info)
             work_dir.mkdir(parents=True, exist_ok=True)
             seen: dict[str, int | None] = {"total": None}
+            final_dir, name_template = destination(settings.output_dir, item)
             path = await ytdlp.download(
                 item.url,
                 args,
-                str(work_dir / "%(title)s [%(id)s].%(ext)s"),
+                str(work_dir / name_template),
                 on_progress=self._progress_writer(item.id, seen),
                 cancel=cancel,
                 info=info,
             )
-            final = await asyncio.to_thread(move_into, path, settings.output_dir)
+            final = await asyncio.to_thread(move_into, path, final_dir)
             self.store.update_item(
                 item.id,
                 status=DONE,

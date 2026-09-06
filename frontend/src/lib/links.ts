@@ -35,9 +35,18 @@ export function collectLinks(result: InspectResult, selected: Set<string>): NewL
     if (link.kind === 'video') {
       push({ url: link.url, title: link.title ?? null, thumbnail: link.thumbnail ?? null });
     } else {
-      for (const e of link.entries ?? []) {
-        if (selected.has(e.url)) push({ url: e.url, title: e.title, thumbnail: e.thumbnail });
-      }
+      const entries = link.entries ?? [];
+      entries.forEach((e, i) => {
+        if (selected.has(e.url)) {
+          push({
+            url: e.url,
+            title: e.title,
+            thumbnail: e.thumbnail,
+            collection: link.title ?? null,
+            collection_index: i + 1,
+          });
+        }
+      });
     }
   }
   return out;

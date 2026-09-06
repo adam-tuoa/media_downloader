@@ -1,4 +1,6 @@
-from app.store import CANCELLED, DONE, ERROR, QUEUED, RUNNING, Store
+import sqlite3
+
+from app.store import CANCELLED, DONE, ERROR, QUEUED, RUNNING, NewItem, Store
 
 
 def test_create_list_and_delete_jobs(tmp_path):
@@ -65,3 +67,38 @@ def test_status_constants():
         "error",
         "cancelled",
     }
+
+
+def test_items_carry_collection(tmp_path):
+    store = Store(tmp_path / "db.sqlite3")
+    job = store.create_job(
+        "audio", {}, [NewItem("https://a", collection="An Album", collection_index=2), "https://b"]
+    )
+    assert (job.items[0].collection, job.items[0].collection_index) == ("An Album", 2)
+    assert (job.items[1].collection, job.items[1].collection_index) == (None, None)
+
+
+def test_old_database_gets_new_columns(tmp_path):
+    path = tmp_path / "old.sqlite3"
+    conn = sqlite3.connect(path)
+    conn.executescript(
+        """
+        CREATE TABLE jobs (id TEXT PRIMARY KEY, created_at REAL NOT NULL, kind TEXT NOT NULL,
+            options TEXT NOT NULL);
+        CREATE TABLE items (id TEXT PRIMARY KEY, job_id TEXT NOT NULL, position INTEGER NOT NULL,
+            url TEXT NOT NULL, status TEXT NOT NULL, title TEXT, uploader TEXT, duration REAL,
+            thumbnail TEXT, stage TEXT, downloaded INTEGER, total INTEGER, speed REAL, eta INTEGER,
+            file_path TEXT, error TEXT, created_at REAL NOT NULL, started_at REAL,
+            finished_at REAL);
+        INSERT INTO jobs VALUES ('j', 1, 'video', '{}');
+        INSERT INTO items (id, job_id, position, url, status, created_at)
+            VALUES ('i', 'j', 0, 'https://a', 'done', 1);
+        """
+    )
+    conn.commit()
+    conn.close()
+    store = Store(path)  # must not fail, and must add the columns
+    item = store.get_item("i")
+    assert item is not None and item.collection is None and item.collection_index is None
+    store.update_item("i", collection="X", collection_index=1)
+    assert store.get_item("i").collection == "X"
