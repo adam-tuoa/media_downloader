@@ -8,7 +8,7 @@ export function describeItem(item: Item): string {
     case 'running': {
       const pct = percent(item.downloaded, item.total);
       const bits = [item.stage ?? 'Working'];
-      if (item.stage === 'Downloading' && pct != null) {
+      if (item.stage?.startsWith('Downloading') && pct != null) {
         bits.push(`${pct}%`);
         const speed = formatSpeed(item.speed);
         if (speed) bits.push(speed);
@@ -29,7 +29,8 @@ export function describeItem(item: Item): string {
 export function barWidth(item: Item): number {
   if (item.status === 'done') return 100;
   if (item.status !== 'running') return 0;
-  if (item.stage && item.stage !== 'Downloading' && item.stage !== 'Starting') return 100;
+  if (item.stage && !item.stage.startsWith('Downloading') && !item.stage.startsWith('Starting'))
+    return 100;
   return percent(item.downloaded, item.total) ?? 0;
 }
 

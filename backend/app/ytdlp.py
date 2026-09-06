@@ -24,6 +24,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from app import links
+
 
 def _default_bin_dir() -> Path:
     # A PyInstaller bundle (Phase 4) unpacks its data under sys._MEIPASS; dev runs use backend/bin.
@@ -50,7 +52,8 @@ _PROGRESS_TEMPLATE = (
     + PROGRESS_PREFIX
     + '{"status":%(progress.status)j,"downloaded":%(progress.downloaded_bytes)j,'
     '"total":%(progress.total_bytes)j,"estimate":%(progress.total_bytes_estimate)j,'
-    '"speed":%(progress.speed)j,"eta":%(progress.eta)j}'
+    '"speed":%(progress.speed)j,"eta":%(progress.eta)j,'
+    '"v":%(info.vcodec)j,"a":%(info.acodec)j}'
 )
 _POSTPROCESS_TEMPLATE = (
     "postprocess:"
@@ -59,6 +62,17 @@ _POSTPROCESS_TEMPLATE = (
 )
 
 PROBE_TIMEOUT = 120  # seconds; metadata extraction should never take this long
+PLAYLIST_LIMIT = 200  # entries listed per playlist; beyond this we report "truncated"
+
+
+@dataclass
+class Options:
+    """Runtime options applied to every yt-dlp call; set from Settings at startup and on change."""
+
+    cookies_browser: str | None = None  # chrome | firefox | edge | safari | brave | ...
+
+
+options = Options()
 _PARTIAL_SUFFIXES = (".part", ".ytdl", ".temp", ".tmp")
 
 
@@ -77,6 +91,7 @@ class Progress:
     speed: float | None = None
     eta: int | None = None
     postprocessor: str | None = None
+    stream: str | None = None  # "video" | "audio" | "both" - which stream a download line is for
 
     @property
     def fraction(self) -> float | None:
@@ -129,6 +144,10 @@ def base_args() -> list[str]:
     deno = executable("deno")
     if deno:
         args += ["--js-runtimes", f"deno:{deno}"]
+    if options.cookies_browser:
+        args += ["--cookies-from-browser", options.cookies_browser]
+    if not links.allow_any_site():
+        args += ["--use-extractors", links.EXTRACTOR_ALLOWLIST]
     return args
 
 
@@ -153,6 +172,18 @@ def _int(value: object) -> int | None:
     return None if value is None else int(value)  # type: ignore[call-overload]
 
 
+def _stream(vcodec: object, acodec: object) -> str | None:
+    has_video = vcodec not in (None, "none")
+    has_audio = acodec not in (None, "none")
+    if has_video and has_audio:
+        return "both"
+    if has_video:
+        return "video"
+    if has_audio:
+        return "audio"
+    return None
+
+
 def parse_line(line: str) -> Progress | Path | None:
     """Classify one stdout line from a download run; None for lines we don't care about."""
     if line.startswith(FILEPATH_PREFIX):
@@ -166,6 +197,7 @@ def parse_line(line: str) -> Progress | Path | None:
             total=_int(data.get("total") or data.get("estimate")),
             speed=data.get("speed"),
             eta=_int(data.get("eta")),
+            stream=_stream(data.get("v"), data.get("a")),
         )
     if line.startswith(POSTPROCESS_PREFIX):
         data = json.loads(_NA.sub("null", line[len(POSTPROCESS_PREFIX) :]))
@@ -308,6 +340,24 @@ async def probe(url: str) -> dict:
         )
     except TimeoutError:
         raise YtdlpError("Timed out while fetching video information") from None
+    if rc != 0:
+        raise YtdlpError(extract_error(err))
+    try:
+        return json.loads(out)
+    except json.JSONDecodeError as exc:
+        raise YtdlpError("yt-dlp returned unreadable metadata") from exc
+
+
+async def inspect(url: str) -> dict:
+    """Metadata for a possible playlist; entries are listed (flat, capped), not extracted."""
+    try:
+        rc, out, err = await asyncio.to_thread(
+            _run_sync,
+            ["-J", "--flat-playlist", "--playlist-end", str(PLAYLIST_LIMIT), url],
+            PROBE_TIMEOUT,
+        )
+    except TimeoutError:
+        raise YtdlpError("Timed out while reading the playlist") from None
     if rc != 0:
         raise YtdlpError(extract_error(err))
     try:

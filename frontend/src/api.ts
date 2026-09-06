@@ -35,11 +35,47 @@ export interface Job {
 export interface Settings {
   output_dir: string;
   concurrency: number;
+  cookies_browser: string | null;
+}
+
+export interface NewLink {
+  url: string;
+  title?: string | null;
+  thumbnail?: string | null;
 }
 
 export type JobCreate =
-  | { urls: string[]; kind: 'video'; height: number | null }
-  | { urls: string[]; kind: 'audio'; audio_format: 'mp3'; audio_bitrate: AudioBitrate };
+  | { links: NewLink[]; kind: 'video'; height: number | null }
+  | { links: NewLink[]; kind: 'audio'; audio_format: 'mp3'; audio_bitrate: AudioBitrate };
+
+export interface LinkEntry {
+  url: string;
+  title: string | null;
+  duration: number | null;
+  thumbnail: string | null;
+}
+
+export interface LinkInfo {
+  input: string;
+  url: string;
+  site: string;
+  kind: 'video' | 'playlist';
+  title?: string | null;
+  thumbnail?: string | null;
+  count?: number;
+  truncated?: boolean;
+  entries?: LinkEntry[];
+}
+
+export interface LinkProblem {
+  input: string;
+  message: string;
+}
+
+export interface InspectResult {
+  links: LinkInfo[];
+  errors: LinkProblem[];
+}
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
@@ -80,6 +116,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return (await res.json()) as T;
 }
 
+export const inspectLinks = (urls: string[]) =>
+  request<InspectResult>('POST', '/api/links', { urls });
 export const listJobs = () => request<Job[]>('GET', '/api/jobs');
 export const createJob = (body: JobCreate) => request<Job>('POST', '/api/jobs', body);
 export const cancelJob = (id: string) => request<{ ok: true }>('POST', `/api/jobs/${id}/cancel`);

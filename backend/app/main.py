@@ -18,9 +18,9 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
-from app import desktop, formats, ytdlp
+from app import desktop, formats, links, ytdlp
 from app.paths import data_dir
-from app.store import ACTIVE, Store
+from app.store import ACTIVE, NewItem, Store
 from app.worker import MAX_CONCURRENCY, Manager, current_settings
 
 
@@ -29,6 +29,7 @@ async def lifespan(app: FastAPI):
     store = Store(data_dir() / "jobs.sqlite3")
     manager = Manager(store)
     app.state.store, app.state.manager = store, manager
+    ytdlp.options.cookies_browser = store.get_setting("cookies_browser") or None
     await manager.start()
     try:
         yield
@@ -64,25 +65,31 @@ class UrlRequest(BaseModel):
         return _clean_url(value)
 
 
+class LinkIn(BaseModel):
+    url: str = Field(min_length=1)
+    title: str | None = None
+    thumbnail: str | None = None
+
+
 class JobCreate(BaseModel):
-    urls: list[str] = Field(min_length=1, max_length=50)
+    links: list[LinkIn] = Field(min_length=1, max_length=500)
     kind: Literal["video", "audio"] = "video"
     height: int | None = Field(default=None, ge=144, description="video: largest height allowed")
     audio_format: Literal["mp3"] = "mp3"
     audio_bitrate: Literal[128, 192, 320] = 320
 
-    @field_validator("urls")
-    @classmethod
-    def _links_only(cls, urls: list[str]) -> list[str]:
-        cleaned = [_clean_url(u) for u in urls if u.strip()]
-        if not cleaned:
-            raise ValueError("Paste at least one link")
-        return list(dict.fromkeys(cleaned))  # de-duplicate, keep order
+
+class LinksRequest(BaseModel):
+    urls: list[str] = Field(min_length=1, max_length=100)
+
+
+Browser = Literal["chrome", "firefox", "edge", "safari", "brave", "chromium", "opera", "vivaldi"]
 
 
 class SettingsUpdate(BaseModel):
     output_dir: str | None = None
     concurrency: int | None = Field(default=None, ge=1, le=MAX_CONCURRENCY)
+    cookies_browser: Browser | Literal[""] | None = None  # "" clears it
 
 
 class RevealRequest(BaseModel):
@@ -119,6 +126,81 @@ async def probe(req: UrlRequest) -> dict:
     return formats.summary(await ytdlp.probe(req.url))
 
 
+# --- links ---
+
+
+def _entry_thumbnail(entry: dict) -> str | None:
+    if entry.get("thumbnail"):
+        return entry["thumbnail"]
+    thumbs = entry.get("thumbnails") or []
+    return thumbs[-1].get("url") if thumbs else None
+
+
+async def _describe_link(raw: str, link: links.Link, limit: asyncio.Semaphore) -> dict:
+    """What one pasted line turns out to be; playlists get their entries listed."""
+    base = {"input": raw, "url": link.url, "site": link.site}
+    if link.kind == "video":
+        return {**base, "kind": "video"}
+    async with limit:
+        try:
+            info = await ytdlp.inspect(link.url)
+        except ytdlp.YtdlpError as exc:
+            return {"input": raw, "message": links.friendly_error(str(exc))}
+    if info.get("_type") != "playlist":
+        return {
+            **base,
+            "kind": "video",
+            "url": info.get("webpage_url") or link.url,
+            "title": info.get("title"),
+            "thumbnail": info.get("thumbnail"),
+        }
+    entries = [
+        {
+            "url": e.get("url") or e.get("webpage_url"),
+            "title": e.get("title"),
+            "duration": e.get("duration"),
+            "thumbnail": _entry_thumbnail(e),
+        }
+        for e in info.get("entries") or []
+        if e and (e.get("url") or e.get("webpage_url"))
+    ]
+    count = info.get("playlist_count") or len(entries)
+    return {
+        **base,
+        "kind": "playlist",
+        "title": info.get("title"),
+        "thumbnail": info.get("thumbnail"),
+        "count": count,
+        "truncated": count > len(entries),
+        "entries": entries,
+    }
+
+
+@app.post("/api/links")
+async def inspect_links(req: LinksRequest) -> dict:
+    """Step one of adding downloads: say what each pasted line is (video, playlist + entries, or
+    a problem) so the UI can let the user choose before anything is queued."""
+    parsed: list[tuple[str, links.Link]] = []
+    errors: list[dict] = []
+    seen: set[str] = set()
+    for raw in req.urls:
+        if not raw.strip():
+            continue
+        try:
+            link = links.parse(raw)
+        except links.LinkError as exc:
+            errors.append({"input": raw, "message": str(exc)})
+            continue
+        if link.url not in seen:
+            seen.add(link.url)
+            parsed.append((raw, link))
+    limit = asyncio.Semaphore(3)
+    described = await asyncio.gather(*(_describe_link(raw, link, limit) for raw, link in parsed))
+    results = [d for d in described if "kind" in d]
+    errors += [d for d in described if "kind" not in d]
+    return {"links": results, "errors": errors}
+
+
 # --- jobs ---
 
 
@@ -134,7 +216,19 @@ async def create_job(req: JobCreate, request: Request) -> dict:
         if req.kind == "video"
         else {"audio_format": req.audio_format, "audio_bitrate": req.audio_bitrate}
     )
-    job = _store(request).create_job(req.kind, options, req.urls)
+    items: list[NewItem] = []
+    seen: set[str] = set()
+    for entry in req.links:
+        try:
+            link = links.parse(entry.url)
+        except links.LinkError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        if link.kind == "playlist":
+            raise HTTPException(422, "Playlist links need to be expanded first (POST /api/links)")
+        if link.url not in seen:
+            seen.add(link.url)
+            items.append(NewItem(url=link.url, title=entry.title, thumbnail=entry.thumbnail))
+    job = _store(request).create_job(req.kind, options, items)
     _manager(request).notify()
     return job.to_dict()
 
@@ -187,7 +281,11 @@ async def retry_item(item_id: str, request: Request) -> dict:
 
 def _settings_dict(store: Store) -> dict:
     s = current_settings(store)
-    return {"output_dir": str(s.output_dir), "concurrency": s.concurrency}
+    return {
+        "output_dir": str(s.output_dir),
+        "concurrency": s.concurrency,
+        "cookies_browser": store.get_setting("cookies_browser") or None,
+    }
 
 
 @app.get("/api/settings")
@@ -218,6 +316,9 @@ async def update_settings(req: SettingsUpdate, request: Request) -> dict:
     if req.concurrency is not None:
         store.set_setting("concurrency", str(req.concurrency))
         _manager(request).notify()
+    if req.cookies_browser is not None:
+        store.set_setting("cookies_browser", req.cookies_browser)
+        ytdlp.options.cookies_browser = req.cookies_browser or None
     return _settings_dict(store)
 
 

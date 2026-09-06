@@ -60,3 +60,31 @@ def test_resolve_output_prefers_reported_then_largest_complete_file(tmp_path):
     assert ytdlp.resolve_output(None, tmp_path) == real
     assert ytdlp.resolve_output(None, tmp_path / "missing") is None
     assert ytdlp.resolve_output(None, tmp_path / "missing") is None
+
+
+def test_parse_progress_identifies_stream():
+    def line(v: str, a: str) -> str:
+        return (
+            'PROGRESS {"status":"downloading","downloaded":1,"total":2,"estimate":NA,'
+            f'"speed":NA,"eta":NA,"v":{v},"a":{a}}}'
+        )
+
+    cases = [
+        (line('"av01.0.00M.08"', '"none"'), "video"),
+        (line('"none"', '"opus"'), "audio"),
+        (line('"avc1"', '"mp4a"'), "both"),
+        (line("NA", "NA"), None),
+    ]
+    assert [ytdlp.parse_line(text).stream for text, _ in cases] == [s for _, s in cases]
+
+
+def test_base_args_apply_cookies_and_allowlist(monkeypatch):
+    monkeypatch.setattr(ytdlp.options, "cookies_browser", None)
+    monkeypatch.delenv("MD_ALLOW_ANY_SITE", raising=False)
+    args = ytdlp.base_args()
+    assert "--use-extractors" in args and "--cookies-from-browser" not in args
+    monkeypatch.setattr(ytdlp.options, "cookies_browser", "firefox")
+    monkeypatch.setenv("MD_ALLOW_ANY_SITE", "1")
+    args = ytdlp.base_args()
+    assert args[args.index("--cookies-from-browser") + 1] == "firefox"
+    assert "--use-extractors" not in args

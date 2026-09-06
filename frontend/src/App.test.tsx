@@ -23,7 +23,7 @@ describe('App', () => {
       </QueryClientProvider>
     );
     expect(screen.getByRole('heading', { name: 'Media Downloader' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Paste one or more links, one per line')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Paste links/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download' })).toBeDisabled();
     expect(await screen.findByText(/Nothing yet/)).toBeInTheDocument();
   });

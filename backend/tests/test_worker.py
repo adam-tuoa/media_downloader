@@ -86,7 +86,8 @@ async def test_probe_failure_marks_error(store, fake):
         await wait_until(lambda: store.get_item(job.items[0].id).status == ERROR)
     finally:
         await manager.stop()
-    assert store.get_item(job.items[0].id).error == "[youtube] v1: Video unavailable"
+    error = store.get_item(job.items[0].id).error
+    assert error.startswith("This video isn't available") and "[youtube] v1" in error
 
 
 async def test_concurrency_limit_and_cancel(store, fake):
@@ -144,3 +145,45 @@ def test_current_settings_defaults_and_clamping(tmp_path):
     assert s.concurrency == 2 and s.output_dir.name == "Media Downloader"
     store.set_setting("concurrency", "99")
     assert worker.current_settings(store).concurrency == worker.MAX_CONCURRENCY
+
+
+async def test_playlist_link_is_refused_by_worker(store, fake, monkeypatch):
+    async def playlist_probe(url):
+        return {"_type": "playlist", "title": "PL", "entries": []}
+
+    monkeypatch.setattr(worker.ytdlp, "probe", playlist_probe)
+    manager = worker.Manager(store)
+    await manager.start()
+    try:
+        job = store.create_job("video", {}, ["https://www.youtube.com/playlist?list=PL1"])
+        manager.notify()
+        await wait_until(lambda: store.get_item(job.items[0].id).status == ERROR)
+    finally:
+        await manager.stop()
+    assert "playlist" in store.get_item(job.items[0].id).error
+
+
+async def test_error_messages_get_friendly_hints(store, fake):
+    fake.probe_error = "[vimeo] 1: The web client only works when logged-in. Use --cookies"
+    manager = worker.Manager(store)
+    await manager.start()
+    try:
+        job = store.create_job("video", {}, ["https://vimeo.com/1"])
+        manager.notify()
+        await wait_until(lambda: store.get_item(job.items[0].id).status == ERROR)
+    finally:
+        await manager.stop()
+    assert store.get_item(job.items[0].id).error.startswith("Needs a signed-in browser")
+
+
+def test_stage_labels_follow_the_stream(store):
+    manager = worker.Manager(store)
+    job = store.create_job("video", {}, ["https://x/v1"])
+    item_id = job.items[0].id
+    on_progress = manager._progress_writer(item_id, {"total": None})
+    on_progress(worker.ytdlp.Progress("download", "downloading", 1, 10, stream="video"))
+    assert store.get_item(item_id).stage == "Downloading video"
+    on_progress(worker.ytdlp.Progress("download", "downloading", 1, 10, stream="audio"))
+    assert store.get_item(item_id).stage == "Downloading audio"
+    on_progress(worker.ytdlp.Progress("download", "downloading", 1, 10))
+    assert store.get_item(item_id).stage == "Downloading"

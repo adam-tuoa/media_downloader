@@ -3,10 +3,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSettings, reveal, saveSettings, type Settings } from '../api';
 import { inputClass } from '../lib/ui';
 
+const BROWSERS = [
+  { value: 'firefox', label: 'Firefox' },
+  { value: 'chrome', label: 'Chrome' },
+  { value: 'edge', label: 'Edge' },
+  { value: 'safari', label: 'Safari' },
+  { value: 'brave', label: 'Brave' },
+];
+
 function SettingsForm({ initial }: { initial: Settings }) {
   const queryClient = useQueryClient();
   const [folder, setFolder] = useState(initial.output_dir);
   const [concurrency, setConcurrency] = useState(initial.concurrency);
+  const [cookies, setCookies] = useState(initial.cookies_browser ?? '');
 
   const save = useMutation({
     mutationFn: saveSettings,
@@ -14,7 +23,10 @@ function SettingsForm({ initial }: { initial: Settings }) {
   });
   const open = useMutation({ mutationFn: () => reveal() });
 
-  const dirty = folder !== initial.output_dir || concurrency !== initial.concurrency;
+  const dirty =
+    folder !== initial.output_dir ||
+    concurrency !== initial.concurrency ||
+    cookies !== (initial.cookies_browser ?? '');
 
   return (
     <>
@@ -58,11 +70,35 @@ function SettingsForm({ initial }: { initial: Settings }) {
         </select>
       </div>
 
+      <div className="space-y-2">
+        <label htmlFor="cookies" className="block text-sm font-medium text-slate-700">
+          Use cookies from
+        </label>
+        <select
+          id="cookies"
+          value={cookies}
+          onChange={(e) => setCookies(e.target.value)}
+          className={inputClass}
+        >
+          <option value="">No browser (default)</option>
+          {BROWSERS.map((b) => (
+            <option key={b.value} value={b.value}>
+              {b.label}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-slate-500">
+          Only needed for videos that require being signed in — Vimeo, private or members-only
+          videos. Pick a browser you’re signed in with. Firefox works best; Chrome on Windows often
+          won’t share its cookies.
+        </p>
+      </div>
+
       <div className="flex items-center gap-3">
         <button
           type="button"
           disabled={!dirty || save.isPending}
-          onClick={() => save.mutate({ output_dir: folder, concurrency })}
+          onClick={() => save.mutate({ output_dir: folder, concurrency, cookies_browser: cookies })}
           className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
         >
           {save.isPending ? 'Saving…' : 'Save'}
@@ -87,7 +123,7 @@ export default function SettingsPanel() {
       {settings.data ? (
         // Keyed on the saved values so the form resets to them after a save or refetch.
         <SettingsForm
-          key={`${settings.data.output_dir}|${settings.data.concurrency}`}
+          key={`${settings.data.output_dir}|${settings.data.concurrency}|${settings.data.cookies_browser ?? ''}`}
           initial={settings.data}
         />
       ) : settings.error ? (

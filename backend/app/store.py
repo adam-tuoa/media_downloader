@@ -93,6 +93,13 @@ class Job:
 ITEM_COLUMNS = tuple(f.name for f in fields(Item))
 
 
+@dataclass(frozen=True)
+class NewItem:
+    url: str
+    title: str | None = None
+    thumbnail: str | None = None
+
+
 def new_id() -> str:
     return uuid.uuid4().hex[:12]
 
@@ -110,7 +117,10 @@ class Store:
 
     # --- jobs ---
 
-    def create_job(self, kind: str, options: dict[str, Any], urls: list[str]) -> Job:
+    def create_job(
+        self, kind: str, options: dict[str, Any], items: list[NewItem] | list[str]
+    ) -> Job:
+        new_items = [NewItem(x) if isinstance(x, str) else x for x in items]
         job_id, now = new_id(), time.time()
         with self.conn:
             self.conn.execute(
@@ -118,9 +128,13 @@ class Store:
                 (job_id, now, kind, json.dumps(options)),
             )
             self.conn.executemany(
-                "INSERT INTO items (id, job_id, position, url, status, created_at)"
-                " VALUES (?, ?, ?, ?, ?, ?)",
-                [(new_id(), job_id, i, url, QUEUED, now) for i, url in enumerate(urls)],
+                "INSERT INTO items"
+                " (id, job_id, position, url, status, title, thumbnail, created_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    (new_id(), job_id, i, it.url, QUEUED, it.title, it.thumbnail, now)
+                    for i, it in enumerate(new_items)
+                ],
             )
         job = self.get_job(job_id)
         assert job is not None

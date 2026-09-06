@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from app import formats, ytdlp
+from app import formats, links, ytdlp
 from app.paths import default_output_dir
 from app.store import CANCELLED, DONE, ERROR, QUEUED, RUNNING, Item, Job, Store
 
@@ -138,6 +138,10 @@ class Manager:
             if job is None:  # deleted while queued
                 return
             info = await ytdlp.probe(item.url)
+            if info.get("_type") == "playlist":
+                raise ytdlp.YtdlpError(
+                    "This is a playlist link - add it on its own to choose which entries to get"
+                )
             self.store.update_item(
                 item.id,
                 title=info.get("title"),
@@ -186,7 +190,7 @@ class Manager:
                     item.id,
                     status=ERROR,
                     stage=None,
-                    error=str(exc),
+                    error=links.friendly_error(str(exc)),
                     speed=None,
                     eta=None,
                     finished_at=time.time(),
@@ -215,7 +219,9 @@ class Manager:
                 values: dict = {"stage": stage, "speed": None, "eta": None}
                 must_write = stage != last_stage
             else:
-                stage = "Downloading"
+                stage = {"video": "Downloading video", "audio": "Downloading audio"}.get(
+                    p.stream or "", "Downloading"
+                )
                 if p.total:
                     seen["total"] = p.total
                 values = {

@@ -1,6 +1,6 @@
 # Plan — Media Downloader (for Dad)
 
-Status: Phase 1 complete 2026-09-06. **Next: Phase 2.**
+Status: Phase 2 complete 2026-09-06. **Next: Phase 3.**
 
 ## Goal
 
@@ -30,6 +30,8 @@ Primary user: Adam's dad. Audio quality matters; often audio-only (MP3) is all t
     `/usr/local/bin` and it fails in confusing ways ("no such option: --js-runtimes").
   - With Deno on PATH, yt-dlp's default clients return the full format list (53 formats to 2160p);
     no `player_client` overrides needed.
+  - **Vimeo** (checked 2026-09-06): every yt-dlp client needs a login now — public videos included — so
+    Vimeo support means browser cookies. Bandcamp and YouTube work anonymously.
   - **Processes run via plain `subprocess` in worker threads, not asyncio subprocesses.** On Windows,
     uvicorn `--reload` uses a SelectorEventLoop, which can't spawn processes (found on the Windows 11 box,
     2026-09-06). Threads work on every loop; progress callbacks are marshalled back onto the loop.
@@ -93,10 +95,15 @@ Each phase leaves the app working. Tests + CI land in Phase 0 so later phases st
 - [x] Probe result reused for the download (`--load-info-json`) — one metadata extraction per item, not two
 
 ### Phase 2 — Batch & playlists
-- [ ] Multi-URL textarea; URL normalisation (`youtu.be`, `/shorts/`, `/live/`, strip `&t=`/`&list=` noise); dedupe
-- [ ] Playlist / album expansion (`--flat-playlist -J`), entry-selection UI, one item per entry
-- [ ] Extractor allowlist (YouTube, youtube:tab, Vimeo, Bandcamp, Bandcamp album) with clear rejection message
-- [ ] One bad URL never stops the batch; per-item retry
+- [x] Multi-URL textarea; URL normalisation (`youtu.be`, `/shorts/`, `/live/`, strip `&t=`/`&list=` noise); dedupe
+- [x] Playlist / album expansion (`--flat-playlist -J`), entry-selection UI, one item per entry
+- [x] Extractor allowlist (YouTube, youtube:tab, Vimeo, Bandcamp, Bandcamp album) with clear rejection message
+- [x] One bad URL never stops the batch; per-item retry
+- [x] "Use cookies from <browser>" setting (`--cookies-from-browser`) — Vimeo currently requires login even
+      for public videos; also unlocks private / members-only / age-checked YouTube
+- [x] Per-stream progress labels ("Downloading video" / "Downloading audio") so a merge doesn't look like a restart
+- [x] Friendly hints prepended to yt-dlp errors people can act on (cookies, private, unavailable)
+- [x] `MD_ALLOW_ANY_SITE=1` escape hatch for Adam's own use
 
 ### Phase 3 — Audio & quality
 - [ ] Audio modes: **Original** (Opus → `.opus`, or `.m4a` when source is AAC), **M4A** (AAC), **MP3** 320/192/128
@@ -121,6 +128,8 @@ Each phase leaves the app working. Tests + CI land in Phase 0 so later phases st
 - `MODE=hosted`: auth, Library + retention, rate limits, Docker with ffmpeg + deno
 - Native window + signed auto-updater via Tauri
 - Pre-probe preview in the form ("Check link" from Phase 0) if Dad wants to confirm before queueing
+- `watch?v=X&list=Y` links: offer "just this video / the whole playlist" instead of always taking the video
+- Channel links (`/@name`): accept as a capped playlist
 - "Batch finished" desktop notification
 
 ## Open questions — resolved "keep it flexible" (2026-09-06)

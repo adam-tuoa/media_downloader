@@ -41,6 +41,10 @@ describe('describe / barWidth', () => {
     };
     expect(describeItem(item)).toBe('Downloading · 25% · 5.0 MB/s · 0:30 left');
     expect(barWidth(item)).toBe(25);
+    expect(describeItem({ ...item, stage: 'Downloading audio' })).toBe(
+      'Downloading audio · 25% · 5.0 MB/s · 0:30 left'
+    );
+    expect(barWidth({ ...item, stage: 'Downloading video' })).toBe(25);
   });
   it('fills the bar during post-processing and when done', () => {
     expect(barWidth({ ...base, status: 'running', stage: 'Converting audio' })).toBe(100);

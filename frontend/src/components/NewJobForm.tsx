@@ -1,8 +1,17 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createJob, type AudioBitrate, type JobCreate, type Kind } from '../api';
-import { parseLinks } from '../lib/links';
+import {
+  createJob,
+  inspectLinks,
+  type AudioBitrate,
+  type InspectResult,
+  type JobCreate,
+  type Kind,
+  type NewLink,
+} from '../api';
+import { allEntryUrls, collectLinks, needsReview, parseLinks } from '../lib/links';
 import { inputClass, segmentClass } from '../lib/ui';
+import ReviewPanel from './ReviewPanel';
 
 const VIDEO_QUALITIES: { value: string; label: string; height: number | null }[] = [
   { value: 'best', label: 'Best available', height: null },
@@ -19,36 +28,68 @@ export default function NewJobForm() {
   const [kind, setKind] = useState<Kind>('video');
   const [quality, setQuality] = useState('best');
   const [bitrate, setBitrate] = useState<AudioBitrate>(320);
+  const [review, setReview] = useState<InspectResult | null>(null);
 
   const create = useMutation({
     mutationFn: createJob,
     onSuccess: () => {
       setText('');
+      setReview(null);
       void queryClient.invalidateQueries({ queryKey: ['jobs'] });
     },
   });
 
+  const buildJob = (chosen: NewLink[]): JobCreate =>
+    kind === 'video'
+      ? {
+          links: chosen,
+          kind,
+          height: VIDEO_QUALITIES.find((q) => q.value === quality)?.height ?? null,
+        }
+      : { links: chosen, kind, audio_format: 'mp3', audio_bitrate: bitrate };
+
+  // Step one: ask the backend what each line is. Plain videos go straight to the queue;
+  // playlists or problems get a review step first.
+  const inspect = useMutation({
+    mutationFn: inspectLinks,
+    onSuccess: (result) => {
+      if (needsReview(result)) setReview(result);
+      else create.mutate(buildJob(collectLinks(result, allEntryUrls(result))));
+    },
+  });
+
   const links = parseLinks(text);
+  const busy = inspect.isPending || create.isPending;
+  const error = inspect.error ?? create.error;
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!links.length) return;
-    const body: JobCreate =
-      kind === 'video'
-        ? {
-            urls: links,
-            kind,
-            height: VIDEO_QUALITIES.find((q) => q.value === quality)?.height ?? null,
-          }
-        : { urls: links, kind, audio_format: 'mp3', audio_bitrate: bitrate };
-    create.mutate(body);
+    if (links.length) inspect.mutate(links);
   };
+
+  if (review) {
+    return (
+      <div className="rounded-xl bg-white p-5 shadow-md sm:p-6">
+        <ReviewPanel
+          result={review}
+          busy={create.isPending}
+          onConfirm={(chosen) => create.mutate(buildJob(chosen))}
+          onBack={() => setReview(null)}
+        />
+        {create.error && (
+          <p role="alert" className="mt-4 rounded-md bg-red-100 p-3 text-red-800">
+            {create.error.message}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={onSubmit} className="space-y-4 rounded-xl bg-white p-5 shadow-md sm:p-6">
       <div className="space-y-2">
         <label htmlFor="links" className="block text-sm font-medium text-slate-700">
-          Paste one or more links, one per line
+          Paste links — videos, playlists or albums — one per line
         </label>
         <textarea
           id="links"
@@ -125,19 +166,21 @@ export default function NewJobForm() {
 
       <button
         type="submit"
-        disabled={!links.length || create.isPending}
+        disabled={!links.length || busy}
         className="w-full rounded-md bg-green-600 p-3 text-base font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-300"
       >
-        {create.isPending
-          ? 'Adding…'
-          : links.length > 1
-            ? `Download ${links.length} links`
-            : 'Download'}
+        {inspect.isPending
+          ? 'Checking links…'
+          : create.isPending
+            ? 'Adding…'
+            : links.length > 1
+              ? `Download ${links.length} links`
+              : 'Download'}
       </button>
 
-      {create.error && (
+      {error && (
         <p role="alert" className="rounded-md bg-red-100 p-3 text-red-800">
-          {create.error.message}
+          {error.message}
         </p>
       )}
     </form>

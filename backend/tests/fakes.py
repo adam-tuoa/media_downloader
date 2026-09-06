@@ -32,6 +32,27 @@ class FakeYtdlp:
         self.infos: list[dict | None] = []
         self.progress_steps = 3
 
+    async def inspect(self, url: str) -> dict:
+        if self.probe_error:
+            raise ytdlp.YtdlpError(self.probe_error)
+        if "playlist" in url or "/album/" in url:
+            return {
+                "_type": "playlist",
+                "title": "Fake playlist",
+                "playlist_count": 3,
+                "entries": [
+                    {
+                        "_type": "url",
+                        "url": f"https://www.youtube.com/watch?v=vid{i}0000000"[:43],
+                        "title": f"Entry {i}",
+                        "duration": 60 * i,
+                        "thumbnails": [{"url": f"https://example.test/{i}.jpg"}],
+                    }
+                    for i in (1, 2, 3)
+                ],
+            }
+        return {**INFO, "_type": "video", "webpage_url": url, "title": "Single via inspect"}
+
     async def probe(self, url: str) -> dict:
         if self.probe_error:
             raise ytdlp.YtdlpError(self.probe_error)
@@ -69,4 +90,5 @@ def install(monkeypatch) -> FakeYtdlp:
     fake = FakeYtdlp()
     monkeypatch.setattr(ytdlp, "probe", fake.probe)
     monkeypatch.setattr(ytdlp, "download", fake.download)
+    monkeypatch.setattr(ytdlp, "inspect", fake.inspect)
     return fake

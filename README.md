@@ -5,9 +5,9 @@ A small, friendly downloader for YouTube (Vimeo and Bandcamp coming) built on
 **Audio (MP3)**, get the file. Heading towards a double-click desktop app that batch-downloads
 lists of links — see [PLAN.md](PLAN.md) for where this is going and what's done.
 
-**Status:** Phase 1 complete — paste one or more links, choose Video (quality) or Audio (MP3),
-watch per-item progress, files land in a folder of your choice. Playlists, batch niceties and
-better audio formats are next (Phases 2–3).
+**Status:** Phase 2 complete — paste links (videos, playlists, albums), pick the entries you
+want, choose Video (quality) or Audio (MP3), watch per-item progress, files land in a folder of
+your choice. Sites: YouTube, Vimeo, Bandcamp. Better audio formats and tagging are next (Phase 3).
 
 ## Stack
 
@@ -82,7 +82,12 @@ CI runs the same on every push (`.github/workflows/ci.yml`).
 
 ## How it works
 
-Submitting links creates a **job** with one **item** per link. A worker inside the API process
+Pasted lines are first normalised and checked (`POST /api/links`): `youtu.be/x`, `/shorts/x`
+and `watch?v=x&list=…` all become the same video; playlist and album links are listed with
+`yt-dlp --flat-playlist` so the user can tick the entries they want; anything that isn't YouTube,
+Vimeo or Bandcamp is refused with a plain message (and yt-dlp itself is run with
+`--use-extractors` so it can never fall back to its generic extractor). Only then does
+submitting create a **job** with one **item** per link. A worker inside the API process
 takes queued items (two at a time by default), probes each with yt-dlp, downloads it into
 `<output folder>/.incomplete/<item id>/`, and moves the finished file into the output folder
 (never overwriting — a duplicate gets ` (1)` appended). Progress goes into a SQLite database that
@@ -96,7 +101,8 @@ the UI polls once a second while anything is active. Interrupted items are re-qu
 ## Layout
 
 ```
-backend/app/main.py     FastAPI routes: /api/jobs, /api/items, /api/settings, /api/reveal, /api/probe
+backend/app/main.py     FastAPI routes: /api/links, /api/jobs, /api/items, /api/settings, /api/reveal
+backend/app/links.py    normalise pasted links, classify video/playlist, site allowlist, error hints
 backend/app/worker.py   the download queue: concurrency, progress, cancel, retry
 backend/app/store.py    SQLite persistence for jobs, items and settings
 backend/app/ytdlp.py    wrapper around the yt-dlp executable (probe, download, update, kill)
@@ -116,11 +122,16 @@ PLAN.md                 the plan, decisions, and phase checklists
 |---|---|---|
 | `MD_BIN_DIR` | `backend/bin` | where the helper binaries live |
 | `MD_DATA_DIR` | per-OS app-data folder | where the jobs database lives |
+| `MD_ALLOW_ANY_SITE` | unset | set to `1` to let yt-dlp try any site it supports (drops the allowlist) |
 | `MD_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | dev-server origins allowed to call the API |
 | `VITE_API_URL` | *(empty)* | backend origin for the UI; empty = same origin / Vite proxy |
 
 ## Notes
 
+- **Vimeo needs you to be signed in** — even for public videos, at the moment. Set *Use cookies
+  from* in Settings to a browser you're logged into Vimeo with (Firefox is the most reliable;
+  Chrome on Windows usually refuses to share its cookies). The same setting unlocks private,
+  age-restricted and members-only YouTube videos.
 - **If YouTube stops working**, the first thing to try is updating yt-dlp:
   `backend/bin/yt-dlp/yt-dlp_macos -U` (or `yt-dlp_linux` / `yt-dlp.exe`). The desktop app will
   do this automatically on launch.
