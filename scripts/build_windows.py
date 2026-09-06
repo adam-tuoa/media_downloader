@@ -62,6 +62,9 @@ def main() -> int:
     assert (site / "app" / "static" / "index.html").exists(), "built UI missing - run npm run build"
 
     print("adding yt-dlp, ffmpeg and deno")
+    # pip --target drops console-script wrappers (uvicorn.exe, media-downloader.exe) into
+    # <target>/bin; they can't work in this layout and the real binaries go there instead.
+    shutil.rmtree(site / "bin", ignore_errors=True)
     shutil.copytree(ROOT / "backend" / "bin", site / "bin")
     assert (site / "bin" / "yt-dlp" / "yt-dlp.exe").exists(), "run scripts/fetch_binaries.py first"
 
