@@ -1,6 +1,6 @@
 # Plan — Media Downloader (for Dad)
 
-Status: **v0.4.1 released 2026-09-06** — Windows installer (no PyInstaller: Defender quarantined the v0.4.0 exe), sealed macOS app (v0.4.0 showed "damaged"), Linux tar.gz. **Next: Adam tests the installer on the PC and the app via Safari on the Mac, then Dad.**
+Status: **v0.4.1 released and verified on the PC and the Mac, 2026-09-06.** Phases 0–4 complete; Dad can be sent the link. Phase 5 items are optional polish.
 
 ## Goal
 
@@ -141,7 +141,8 @@ Each phase leaves the app working. Tests + CI land in Phase 0 so later phases st
 - [x] Release workflow (`release.yml`): tag `v*` or manual → Windows zip, Linux tar.gz (ubuntu-22.04), macOS zip
       (`macos-15-intel`); attaches to a GitHub Release with `packaging/RELEASE_NOTES.md`. AppImage deferred (FUSE support cost)
 - [x] First-run notes in the release body and README
-- [ ] Smoke-test the CI-built Windows zip on the PC and the macOS zip on the Mac (Gatekeeper: `xattr -cr`)
+- [x] Smoke-tested the CI-built v0.4.1 builds: Windows installer on the PC (installed, opened, downloaded — no
+      Defender/SmartScreen quarantine), macOS zip on the Mac after `xattr -cr` (Sequoia's Open Anyway didn't work)
 
 ### Phase 5 — Later
 - Linux AppImage (needs libfuse2 on the user's machine; tar.gz ships first)

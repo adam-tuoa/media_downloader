@@ -20,9 +20,9 @@ Grab the file for your computer from the
 [downloads page](https://github.com/adam-tuoa/media_downloader/releases/latest) — a Windows
 installer, a macOS zip or a Linux tar.gz — and follow the three-line instructions there. The app opens in
 your browser; **Quit** stops it. It updates its downloader engine (yt-dlp) on every launch and
-tells you when a new app version exists. Windows shows SmartScreen's "Run anyway" once; macOS
-(not notarized) needs System Settings → Privacy & Security → **Open Anyway** once, or
-`xattr -cr "Media Downloader.app"`.
+tells you when a new app version exists. Windows shows SmartScreen's "Run anyway" once; on macOS
+(not notarized) run `xattr -cr "Media Downloader.app"` once before the first launch — Sequoia's
+"Open Anyway" route proved unreliable.
 
 Developer notes on how that build is made are under [Packaging](#packaging).
 
