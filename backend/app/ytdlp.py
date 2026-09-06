@@ -28,10 +28,16 @@ from app import links
 
 
 def _default_bin_dir() -> Path:
-    # A PyInstaller bundle (Phase 4) unpacks its data under sys._MEIPASS; dev runs use backend/bin.
+    """Where the helper binaries live: next to the package in dev/Windows layouts, or inside a
+    PyInstaller bundle - ``_MEIPASS/bin``, except in a macOS .app where bundle_binaries.py puts
+    them in ``Contents/Resources/bin`` (codesign rejects dotted directory names in Frameworks)."""
     bundle_root = getattr(sys, "_MEIPASS", None)
     if bundle_root:
-        return Path(bundle_root) / "bin"
+        root = Path(bundle_root)
+        for candidate in (root / "bin", root.parent / "Resources" / "bin"):
+            if candidate.is_dir():
+                return candidate
+        return root / "bin"
     return Path(__file__).resolve().parent.parent / "bin"
 
 

@@ -35,7 +35,7 @@ def setup_logging(folder: Path) -> None:
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     root.addHandler(handler)
-    if sys.stderr is not None:  # running from a terminal: mirror there too
+    if sys.stderr is not None and sys.stderr.fileno() >= 0:  # a real terminal: mirror there too
         root.addHandler(logging.StreamHandler())
 
 
@@ -83,6 +83,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-browser", action="store_true", help="don't open a browser tab")
     args = parser.parse_args(argv)
 
+    if sys.stdout is None or sys.stderr is None:  # pythonw.exe / windowed app: no console streams
+        sys.stdout = sys.stdout or open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
+        sys.stderr = sys.stderr or open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
     folder = data_dir()
     setup_logging(folder)
 

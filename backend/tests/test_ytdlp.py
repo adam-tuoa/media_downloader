@@ -108,3 +108,16 @@ def test_frozen_parent_environment_is_scrubbed_for_children():
         {"LD_LIBRARY_PATH": "/app/_internal", "LD_LIBRARY_PATH_ORIG": ""}
     )
     assert "_PYI_ARCHIVE_FILE" not in ytdlp._env()
+
+
+def test_bundle_bin_dir_candidates(tmp_path, monkeypatch):
+    frameworks = tmp_path / "Contents" / "Frameworks"
+    resources_bin = tmp_path / "Contents" / "Resources" / "bin"
+    frameworks.mkdir(parents=True)
+    resources_bin.mkdir(parents=True)
+    monkeypatch.setattr(ytdlp.sys, "_MEIPASS", str(frameworks), raising=False)
+    assert ytdlp._default_bin_dir() == resources_bin  # macOS .app layout
+    (frameworks / "bin").mkdir()
+    assert ytdlp._default_bin_dir() == frameworks / "bin"  # plain onedir layout wins when present
+    monkeypatch.delattr(ytdlp.sys, "_MEIPASS", raising=False)
+    assert ytdlp._default_bin_dir().name == "bin"  # dev layout: next to the package

@@ -1,6 +1,6 @@
 # Plan — Media Downloader (for Dad)
 
-Status: **v0.4.0 released 2026-09-06** (Windows / Linux / Intel-macOS builds on the Releases page). **Next: test the Windows zip on the PC as Dad would, then give Dad the link.**
+Status: **v0.4.1 released 2026-09-06** — Windows installer (no PyInstaller: Defender quarantined the v0.4.0 exe), sealed macOS app (v0.4.0 showed "damaged"), Linux tar.gz. **Next: Adam tests the installer on the PC and the app via Safari on the Mac, then Dad.**
 
 ## Goal
 
@@ -36,6 +36,10 @@ Primary user: Adam's dad. Audio quality matters; often audio-only (MP3) is all t
     verbatim by `scripts/bundle_binaries.py`, never listed in the spec. Also: a frozen parent leaks `_PYI_*`
     env vars and `LD_LIBRARY_PATH` to children (scrubbed in `ytdlp.clean_frozen_env`), and frozen Python has
     no CA bundle (`certifi` for the release check).
+  - **Windows Defender vs PyInstaller** (found by Adam on the v0.4.0 zip, 2026-09-06): Defender quarantined
+    `MediaDownloader.exe` as a threat and "dismiss" did nothing — the classic unsigned-PyInstaller-bootloader
+    false positive. Windows therefore ships **no custom exe**: python.org embeddable runtime (PSF-signed
+    `pythonw.exe`) + pip-installed package + Inno Setup installer with a shortcut to `pythonw.exe -m app.launcher`.
   - **Audio** (checked 2026-09-06): `-x --audio-format best` keeps the native codec (`.opus` from YouTube, `.mp3`
     from Bandcamp); `--audio-format m4a` on YouTube's `140` stream is a copy (FixupM4a), no re-encode;
     `--embed-thumbnail` needs `--convert-thumbnails jpg` (YouTube serves webp); missing subtitles don't fail.

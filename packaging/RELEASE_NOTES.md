@@ -2,9 +2,10 @@
 
 Download the file for your computer, then:
 
-**Windows** — unzip `MediaDownloader-windows-x64.zip` anywhere (your Desktop is fine), open the
-folder and double-click `MediaDownloader.exe`. The first time, Windows shows a blue
-"Windows protected your PC" box: click **More info**, then **Run anyway**. That only happens once.
+**Windows** — run `MediaDownloader-windows-x64-setup.exe`. Windows may show a blue
+"Windows protected your PC" box the first time: click **More info**, then **Run anyway**. The
+installer puts *Media Downloader* in your Start menu (and on the desktop if you tick the box) and
+can open it straight away. No admin password needed.
 
 **macOS** — unzip `MediaDownloader-macos-x64.zip`, then either right-click `Media Downloader`
 → **Open** → **Open**, or run `xattr -cr "Media Downloader.app"` in Terminal once. The very first

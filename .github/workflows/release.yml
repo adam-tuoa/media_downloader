@@ -40,15 +40,26 @@ jobs:
       - name: Fetch yt-dlp, ffmpeg and deno for this platform
         run: python scripts/fetch_binaries.py
 
+      # Windows: no PyInstaller - Defender quarantines its exes. Embeddable Python + Inno Setup.
+      - name: Assemble the Windows app folder
+        if: runner.os == 'Windows'
+        run: python scripts/build_windows.py
+
+      - name: Build the Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:APP_VERSION = "${{ github.ref_name }}".TrimStart("v")
+          if (-not $env:APP_VERSION -or $env:APP_VERSION -eq "main") { $env:APP_VERSION = "0.0.0" }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\windows.iss
+
       - name: Bundle with PyInstaller
+        if: runner.os != 'Windows'
         run: pyinstaller --noconfirm --clean packaging/MediaDownloader.spec
 
       - name: Add yt-dlp, ffmpeg and deno to the bundle (verbatim)
+        if: runner.os != 'Windows'
         run: python scripts/bundle_binaries.py
-
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
-        run: Compress-Archive -Path dist/MediaDownloader -DestinationPath MediaDownloader-windows-x64.zip
 
       - name: Package (macOS)
         if: runner.os == 'macOS'

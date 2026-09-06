@@ -17,8 +17,8 @@ playlists in their own numbered folders. Sites: YouTube, Vimeo, Bandcamp. Next: 
 ## Install (the desktop app)
 
 Grab the file for your computer from the
-[downloads page](https://github.com/adam-tuoa/media_downloader/releases/latest) — Windows
-zip, macOS zip or Linux tar.gz — and follow the three-line instructions there. The app opens in
+[downloads page](https://github.com/adam-tuoa/media_downloader/releases/latest) — a Windows
+installer, a macOS zip or a Linux tar.gz — and follow the three-line instructions there. The app opens in
 your browser; **Quit** stops it. It updates its downloader engine (yt-dlp) on every launch and
 tells you when a new app version exists.
 
@@ -145,6 +145,14 @@ PLAN.md                 the plan, decisions, and phase checklists
 ```
 
 ## Packaging
+
+**Windows is built differently from macOS/Linux.** Windows Defender quarantines fresh, unsigned
+PyInstaller executables as malware (a heuristic false positive that "dismiss" can't override), so
+the Windows build has no custom `.exe` at all: `scripts/build_windows.py` assembles the
+python.org *embeddable* runtime (its `pythonw.exe` is signed by the Python Software Foundation),
+pip-installs the `app` package and dependencies next to it, adds `bin/`, and
+`packaging/windows.iss` wraps that into a per-user Inno Setup installer whose Start-menu
+shortcut runs `pythonw.exe -m app.launcher`. macOS and Linux use PyInstaller.
 
 `app/launcher.py` is the desktop entry point: it picks a free localhost port, generates a
 per-launch secret, starts uvicorn in-process and opens the browser at `/launch?token=…`, which
