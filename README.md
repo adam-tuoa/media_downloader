@@ -17,7 +17,7 @@ playlists in their own numbered folders. Sites: YouTube, Vimeo, Bandcamp. Next: 
 ## Install (the desktop app)
 
 Grab the file for your computer from the
-[downloads page](https://github.com/adam-tuoa/media-downloader-releases/releases/latest) — Windows
+[downloads page](https://github.com/adam-tuoa/media_downloader/releases/latest) — Windows
 zip, macOS zip or Linux tar.gz — and follow the three-line instructions there. The app opens in
 your browser; **Quit** stops it. It updates its downloader engine (yt-dlp) on every launch and
 tells you when a new app version exists.
@@ -57,8 +57,8 @@ winget install Git.Git
 winget install OpenJS.NodeJS.LTS
 py --list                      # needs 3.13 or newer listed
 
-git clone https://github.com/adam-tuoa/youtube_downloader_app.git
-cd youtube_downloader_app
+git clone https://github.com/adam-tuoa/media_downloader.git
+cd media_downloader
 py -3 -m venv .venv
 .venv\Scripts\python -m pip install --upgrade pip
 .venv\Scripts\pip install -e "backend[dev]"
@@ -163,12 +163,8 @@ Build locally (any OS builds only for itself; CI builds all three):
 ```
 
 Pushing a tag like `v0.4.0` runs `.github/workflows/release.yml`, which builds Windows, Linux
-and (Intel) macOS bundles and publishes them as a release on the **public downloads repo**,
-`adam-tuoa/media-downloader-releases`, with the instructions from `packaging/RELEASE_NOTES.md`.
-This code repo is private; the split keeps download links (and the in-app update check) working
-without a GitHub login. The workflow needs a `RELEASES_TOKEN` secret: a fine-grained personal
-access token with *Contents: read and write* on the releases repo only. `workflow_dispatch`
-builds the artifacts without publishing.
+and (Intel) macOS bundles and attaches them to a GitHub Release here with the instructions from
+`packaging/RELEASE_NOTES.md`. `workflow_dispatch` builds the artifacts without releasing.
 
 ## Configuration
 

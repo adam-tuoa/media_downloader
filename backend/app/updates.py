@@ -12,8 +12,7 @@ import certifi
 
 log = logging.getLogger(__name__)
 
-# Downloads live in a separate public repo; the code repo itself is private.
-RELEASES_REPO = "adam-tuoa/media-downloader-releases"
+RELEASES_REPO = "adam-tuoa/media_downloader"
 LATEST_URL = f"https://api.github.com/repos/{RELEASES_REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{RELEASES_REPO}/releases/latest"
 

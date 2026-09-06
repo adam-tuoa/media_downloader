@@ -49,10 +49,9 @@ Primary user: Adam's dad. Audio quality matters; often audio-only (MP3) is all t
   Tailwind v4, TanStack Query, shadcn/ui.
 - **Sites:** extractor allowlist — YouTube + `youtube:tab` (playlists), Vimeo, Bandcamp (+ album).
   Anything else is rejected with a plain message.
-- **Repos (decided 2026-09-06):** the code repo is **private**; builds are published to a separate **public**
-  repo `adam-tuoa/media-downloader-releases` so Dad's download link and the in-app update check work without a
-  GitHub login. Rationale: YouTube-downloading code sits in a grey zone; keeping the source private removes even
-  the small takedown surface while the downloads stay one click away.
+- **Repo (decided 2026-09-06):** one **public** repo, renamed `adam-tuoa/media_downloader`, releases attached
+  to it. Rationale: yt-dlp front-ends are common and public; a public repo means Dad's download link and the
+  in-app update check work without a GitHub login, and CI minutes are free. README carries a personal-use note.
 - **`MODE=local|hosted` switch** kept in config so a hosted copy stays possible, but auth / Library /
   rate limiting are out of scope until someone wants them.
 - **Trim/clip ranges:** later.
