@@ -1,8 +1,9 @@
 # Plan — Media Downloader (for Dad)
 
-Status: **v0.5.1 (2026-09-09): the Library; bundle slimmed (QuickJS-ng for Deno, no ffprobe), verified on the Mac and
-the Windows PC. After it, on main: the Phase 5 small items (Safari-cookies hint, one language for dubs and subtitles,
-WAV/AIFF, Settings + Help dialogs, default choices in Settings).** Dad reported v0.4.1 "works" on Windows. Phase 5 to-do list
+Status: **v0.6.0 (2026-09-09): Safari-cookies hint, one language for dubs and subtitles, WAV/AIFF, Settings + Help
+dialogs, default choices in Settings, open in the OS player, Library playlists (multi-select, add to playlist,
+browse one, open its folder), compact icon rows.** v0.5.1 the same day slimmed the bundle (QuickJS-ng for Deno, no
+ffprobe). Dad reported v0.4.1 "works" on Windows. Phase 5 to-do list
 reviewed and reordered 2026-09-09 — small fixes first (Safari-cookies hint, one language setting, WAV/AIFF,
 Settings modal, Help), then folder default, Library polish, playback, an app window.
 
