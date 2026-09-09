@@ -1,6 +1,7 @@
 # Plan — Media Downloader (for Dad)
 
-Status: **v0.6.0 (2026-09-09): Safari-cookies hint, one language for dubs and subtitles, WAV/AIFF, Settings + Help
+Status: **v0.6.1 (2026-09-09): unreadable browser cookies are skipped rather than sinking every download, with a notice.
+v0.6.0 the same day: Safari-cookies hint, one language for dubs and subtitles, WAV/AIFF, Settings + Help
 dialogs, default choices in Settings, open in the OS player, Library playlists (multi-select, add to playlist,
 browse one, open its folder), compact icon rows.** v0.5.1 the same day slimmed the bundle (QuickJS-ng for Deno, no
 ffprobe). Dad reported v0.4.1 "works" on Windows. Phase 5 to-do list

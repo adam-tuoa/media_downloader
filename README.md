@@ -8,7 +8,7 @@ cover art and tags. See [PLAN.md](PLAN.md) for the decisions and what's done.
 This is for personal use. Please respect the terms of the sites you download from and the
 rights of the people who made the videos and music.
 
-**Status:** v0.6.0 — a desktop app for Windows, macOS and Linux. Paste links (videos,
+**Status:** v0.6.1 — a desktop app for Windows, macOS and Linux. Paste links (videos,
 playlists, albums), pick the entries you want, choose Video (quality, optional subtitles in your
 language) or Audio (MP3 / M4A / best original / WAV / AIFF), watch per-item progress; files land in
 a folder of your choice with cover art and tags, albums and playlists in their own numbered folders.
