@@ -37,16 +37,10 @@ export default function ItemRow({ item }: { item: Item }) {
       <div className="min-w-0 flex-1">
         <Title text={title} onOpen={onOpen} />
         <p
-          className={`flex items-center gap-2 text-sm ${item.status === 'error' ? 'text-red-700' : 'text-slate-600'}`}
+          className={`truncate text-sm ${item.status === 'error' ? 'text-red-700' : 'text-slate-600'}`}
+          title={describeItem(item)}
         >
-          <span className="min-w-0 truncate" title={describeItem(item)}>
-            {describeItem(item)}
-          </span>
-          <span
-            className={`shrink-0 rounded-full px-1.5 py-px text-[11px] font-semibold ${style.chip}`}
-          >
-            {style.label}
-          </span>
+          {describeItem(item)}
         </p>
         {open.error && (
           <p role="alert" className="text-sm text-red-700">
@@ -65,20 +59,25 @@ export default function ItemRow({ item }: { item: Item }) {
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1">
-        {active && <IconButton icon={X} label="Cancel" onClick={() => cancel.mutate(item.id)} />}
-        {failed && (
-          <IconButton
-            icon={RotateCw}
-            label="Retry"
-            tone="primary"
-            onClick={() => retry.mutate(item.id)}
-          />
-        )}
-        {onOpen && <IconButton icon={Play} label="Open" tone="primary" onClick={onOpen} />}
-        {item.status === 'done' && (
-          <IconButton icon={FolderOpen} label="Show file" onClick={() => show.mutate(item.id)} />
-        )}
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <span className={`rounded-full px-1.5 py-px text-[11px] font-semibold ${style.chip}`}>
+          {style.label}
+        </span>
+        <div className="flex items-center gap-1">
+          {active && <IconButton icon={X} label="Cancel" onClick={() => cancel.mutate(item.id)} />}
+          {failed && (
+            <IconButton
+              icon={RotateCw}
+              label="Retry"
+              tone="primary"
+              onClick={() => retry.mutate(item.id)}
+            />
+          )}
+          {onOpen && <IconButton icon={Play} label="Open" tone="primary" onClick={onOpen} />}
+          {item.status === 'done' && (
+            <IconButton icon={FolderOpen} label="Show file" onClick={() => show.mutate(item.id)} />
+          )}
+        </div>
       </div>
     </li>
   );

@@ -92,32 +92,23 @@ function LibraryRow({
       <Thumbnail src={item.thumbnail} title={title} onOpen={onOpen} />
       <div className="min-w-0 flex-1">
         <Title text={title} onOpen={onOpen} />
-        <p className="flex items-center gap-2 text-sm text-slate-600">
-          <span className="min-w-0 truncate" title={metaText}>
-            {what}
-            {item.collection && (
-              <>
-                {' · '}
-                <button
-                  type="button"
-                  onClick={() => onPlaylist(item.collection!)}
-                  title="Show this playlist"
-                  className="text-blue-700 hover:underline"
-                >
-                  {item.collection}
-                </button>
-                {item.collection_index ? ` #${item.collection_index}` : ''}
-              </>
-            )}
-            {facts.map((f) => ` · ${f}`).join('')}
-          </span>
-          <span
-            className={`shrink-0 rounded-full px-1.5 py-px text-[11px] font-semibold ${
-              item.exists ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
-            }`}
-          >
-            {item.exists ? 'On disk' : 'Missing'}
-          </span>
+        <p className="truncate text-sm text-slate-600" title={metaText}>
+          {what}
+          {item.collection && (
+            <>
+              {' · '}
+              <button
+                type="button"
+                onClick={() => onPlaylist(item.collection!)}
+                title="Show this playlist"
+                className="text-blue-700 hover:underline"
+              >
+                {item.collection}
+              </button>
+              {item.collection_index ? ` #${item.collection_index}` : ''}
+            </>
+          )}
+          {facts.map((f) => ` · ${f}`).join('')}
         </p>
         <p
           className={`truncate text-xs ${item.exists ? 'text-slate-500' : 'text-amber-700'}`}
@@ -133,26 +124,35 @@ function LibraryRow({
           </p>
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-1">
-        {onOpen && <IconButton icon={Play} label="Open" tone="primary" onClick={onOpen} />}
-        {item.exists && (
-          <IconButton icon={FolderOpen} label="Show file" onClick={() => show.mutate(item.id)} />
-        )}
-        <IconButton
-          icon={RotateCw}
-          label="Download again"
-          onClick={() => again.mutate(item.id)}
-          disabled={again.isPending}
-        />
-        <IconButton
-          icon={Trash2}
-          label="Remove"
-          tone="danger"
-          onClick={() => {
-            if (window.confirm('Remove this from the history? The file itself is not touched.'))
-              forget.mutate(item.id);
-          }}
-        />
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <span
+          className={`rounded-full px-1.5 py-px text-[11px] font-semibold ${
+            item.exists ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+          }`}
+        >
+          {item.exists ? 'On disk' : 'Missing'}
+        </span>
+        <div className="flex items-center gap-1">
+          {onOpen && <IconButton icon={Play} label="Open" tone="primary" onClick={onOpen} />}
+          {item.exists && (
+            <IconButton icon={FolderOpen} label="Show file" onClick={() => show.mutate(item.id)} />
+          )}
+          <IconButton
+            icon={RotateCw}
+            label="Download again"
+            onClick={() => again.mutate(item.id)}
+            disabled={again.isPending}
+          />
+          <IconButton
+            icon={Trash2}
+            label="Remove"
+            tone="danger"
+            onClick={() => {
+              if (window.confirm('Remove this from the history? The file itself is not touched.'))
+                forget.mutate(item.id);
+            }}
+          />
+        </div>
       </div>
     </li>
   );
