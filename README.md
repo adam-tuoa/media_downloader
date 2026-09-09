@@ -8,11 +8,12 @@ cover art and tags. See [PLAN.md](PLAN.md) for the decisions and what's done.
 This is for personal use. Please respect the terms of the sites you download from and the
 rights of the people who made the videos and music.
 
-**Status:** Phase 3 complete — paste links (videos, playlists, albums), pick the entries you
-want, choose Video (quality, optional subtitles) or Audio (MP3 / M4A / best original), watch
-per-item progress; files land in a folder of your choice with cover art and tags, albums and
-playlists in their own numbered folders. Sites: YouTube, Vimeo, Bandcamp. Next: the desktop app
-(Phase 4).
+**Status:** v0.5.0 — a desktop app for Windows, macOS and Linux. Paste links (videos,
+playlists, albums), pick the entries you want, choose Video (quality, optional subtitles) or
+Audio (MP3 / M4A / best original), watch per-item progress; files land in a folder of your choice
+with cover art and tags, albums and playlists in their own numbered folders. A **Library** keeps
+the record of everything downloaded — with *Download again* for files that have since moved.
+Sites: YouTube, Vimeo, Bandcamp.
 
 ## Install (the desktop app)
 
@@ -115,6 +116,14 @@ the UI polls once a second while anything is active. Interrupted items are re-qu
 | Jobs database | macOS `~/Library/Application Support/MediaDownloader/`, Windows `%LOCALAPPDATA%\MediaDownloader\`, Linux `~/.local/share/MediaDownloader/` — override with `MD_DATA_DIR` |
 | Downloads (default) | `<your Downloads folder>/Media Downloader/` — change it in Settings |
 
+## Library
+
+The *Library* view lists every finished download from the jobs database, newest first, with
+search and whether each file is still where the app put it. *Download again* re-queues the same
+link with the options it was downloaded with — useful once a file has been moved or deleted.
+*Remove* on the Downloads board only takes a job off the board (it stays in the Library);
+*Remove* in the Library forgets the record. Neither ever deletes a media file.
+
 ## Audio formats
 
 | Choice | What you get | When |
@@ -131,7 +140,7 @@ playlist or album land in `<output>/<playlist name>/01 - Title.ext`.
 ## Layout
 
 ```
-backend/app/main.py     FastAPI routes: /api/links, /api/jobs, /api/items, /api/settings, /api/reveal
+backend/app/main.py     FastAPI routes: /api/links, /api/jobs, /api/items, /api/library, /api/settings, /api/reveal
 backend/app/links.py    normalise pasted links, classify video/playlist, site allowlist, error hints
 backend/app/worker.py   the download queue: concurrency, progress, cancel, retry
 backend/app/store.py    SQLite persistence for jobs, items and settings

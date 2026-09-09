@@ -362,14 +362,74 @@ async def cancel_job(job_id: str, request: Request) -> dict:
 
 
 @app.delete("/api/jobs/{job_id}")
-async def delete_job(job_id: str, request: Request) -> dict:
+async def remove_job(job_id: str, request: Request) -> dict:
+    """Take a job off the board. Finished downloads stay in the library; files stay on disk."""
     store = _store(request)
     job = store.get_job(job_id)
     if job is None:
         raise HTTPException(404, "No such job")
     if any(item.status in ACTIVE for item in job.items):
         _manager(request).cancel_job(job_id)
-    store.delete_job(job_id)  # files stay where they are
+    store.archive_job(job_id)
+    return {"ok": True}
+
+
+@app.post("/api/jobs/clear-finished")
+async def clear_finished(request: Request) -> dict:
+    return {"ok": True, "archived": _store(request).archive_finished()}
+
+
+# --- library ---
+
+
+def _with_file_status(rows: list[dict]) -> list[dict]:
+    for row in rows:
+        row["exists"] = bool(row["file_path"]) and Path(row["file_path"]).exists()
+    return rows
+
+
+@app.get("/api/library")
+async def library(request: Request, q: str = "", limit: int = 100, offset: int = 0) -> dict:
+    """Everything ever downloaded, newest first, noting whether each file is still there."""
+    store = _store(request)
+    query = q.strip() or None
+    limit = max(1, min(limit, 500))
+    page = store.library(query, limit, offset)
+    rows = await asyncio.to_thread(_with_file_status, page)
+    return {"items": rows, "total": store.library_count(query), "offset": offset}
+
+
+@app.post("/api/library/{item_id}/redownload", status_code=201)
+async def redownload(item_id: str, request: Request) -> dict:
+    """Queue the same link again with the options it was downloaded with."""
+    store = _store(request)
+    item = store.get_item(item_id)
+    job = store.get_job(item.job_id) if item else None
+    if item is None or job is None:
+        raise HTTPException(404, "No such download")
+    new_job = store.create_job(
+        job.kind,
+        job.options,
+        [
+            NewItem(
+                url=item.url,
+                title=item.title,
+                thumbnail=item.thumbnail,
+                collection=item.collection,
+                collection_index=item.collection_index,
+            )
+        ],
+    )
+    _manager(request).notify()
+    return new_job.to_dict()
+
+
+@app.delete("/api/library/{item_id}")
+async def forget_download(item_id: str, request: Request) -> dict:
+    store = _store(request)
+    if store.get_item(item_id) is None:
+        raise HTTPException(404, "No such download")
+    store.delete_item(item_id)  # the file itself is never touched
     return {"ok": True}
 
 

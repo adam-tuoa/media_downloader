@@ -1,6 +1,6 @@
 # Plan — Media Downloader (for Dad)
 
-Status: **v0.4.1 released and verified on the PC and the Mac, 2026-09-06.** Phases 0–4 complete; Dad has the link. **Next: collect Dad's first feedback, then Phase 5 starting with the Library.**
+Status: **v0.5.0 (2026-09-09): the Library.** Dad reported v0.4.1 "works" on Windows. Phase 5 continues as wanted: trim/clip, icon, notarization, AppImage, playlist-or-video prompt.
 
 ## Goal
 
@@ -145,7 +145,7 @@ Each phase leaves the app working. Tests + CI land in Phase 0 so later phases st
       Defender/SmartScreen quarantine), macOS zip on the Mac after `xattr -cr` (Sequoia's Open Anyway didn't work)
 
 ### Phase 5 — Later
-- **Library (first up, Adam's request 2026-09-06):** a page listing everything ever downloaded, from `jobs.sqlite3`
+- [x] **Library (done 2026-09-09, v0.5.0):** a page listing everything ever downloaded, from `jobs.sqlite3`
   — title, thumbnail, site, format/quality, when, and whether the file is still where it was put (moved/deleted
   files shown as such, not hidden). Actions: open file / show in folder when present, **Download again** (re-queue
   the same URL with the same options — the whole point when a file has gone), remove from history. Search by title.

@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     id TEXT PRIMARY KEY,
     created_at REAL NOT NULL,
     kind TEXT NOT NULL,
-    options TEXT NOT NULL
+    options TEXT NOT NULL,
+    archived INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS items (
     id TEXT PRIMARY KEY,
@@ -83,7 +84,15 @@ class Item:
 
 
 # Columns added after the first release; older databases get them on open.
-_ADDED_COLUMNS = (("collection", "TEXT"), ("collection_index", "INTEGER"))
+_ADDED_COLUMNS = (
+    ("items", "collection", "TEXT"),
+    ("items", "collection_index", "INTEGER"),
+    (
+        "jobs",
+        "archived",
+        "INTEGER NOT NULL DEFAULT 0",
+    ),  # hidden from the board, kept in the library
+)
 
 
 @dataclass
@@ -93,6 +102,7 @@ class Job:
     kind: str
     options: dict[str, Any]
     items: list[Item] = field(default_factory=list)
+    archived: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -124,11 +134,11 @@ class Store:
         self._migrate()
 
     def _migrate(self) -> None:
-        existing = {row["name"] for row in self.conn.execute("PRAGMA table_info(items)")}
         with self.conn:
-            for column, declaration in _ADDED_COLUMNS:
+            for table, column, declaration in _ADDED_COLUMNS:
+                existing = {row["name"] for row in self.conn.execute(f"PRAGMA table_info({table})")}
                 if column not in existing:
-                    self.conn.execute(f"ALTER TABLE items ADD COLUMN {column} {declaration}")
+                    self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {declaration}")
 
     def close(self) -> None:
         self.conn.close()
@@ -173,15 +183,78 @@ class Store:
         row = self.conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
         return self._job(row) if row else None
 
-    def list_jobs(self, limit: int = 50) -> list[Job]:
+    def list_jobs(self, limit: int = 50, include_archived: bool = False) -> list[Job]:
+        where = "" if include_archived else "WHERE archived = 0"
         rows = self.conn.execute(
-            "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?", (limit,)
+            f"SELECT * FROM jobs {where} ORDER BY created_at DESC LIMIT ?", (limit,)
         ).fetchall()
         return [self._job(row) for row in rows]
 
     def delete_job(self, job_id: str) -> None:
         with self.conn:
             self.conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+
+    def archive_job(self, job_id: str) -> None:
+        """Take a job off the board; its finished items stay in the library."""
+        with self.conn:
+            self.conn.execute("UPDATE jobs SET archived = 1 WHERE id = ?", (job_id,))
+
+    def archive_finished(self) -> int:
+        """Archive every job that has nothing queued or running; returns how many."""
+        with self.conn:
+            cur = self.conn.execute(
+                "UPDATE jobs SET archived = 1 WHERE archived = 0 AND NOT EXISTS ("
+                " SELECT 1 FROM items WHERE items.job_id = jobs.id AND items.status IN (?, ?))",
+                (QUEUED, RUNNING),
+            )
+        return cur.rowcount
+
+    # --- library: every finished item, regardless of archiving ---
+
+    def library(self, query: str | None = None, limit: int = 100, offset: int = 0) -> list[dict]:
+        where = "WHERE items.status = ?"
+        params: list[Any] = [DONE]
+        if query:
+            where += " AND (items.title LIKE ? OR items.url LIKE ? OR items.collection LIKE ?)"
+            like = f"%{query}%"
+            params += [like, like, like]
+        rows = self.conn.execute(
+            f"SELECT items.*, jobs.kind AS job_kind, jobs.options AS job_options FROM items"
+            f" JOIN jobs ON jobs.id = items.job_id {where}"
+            " ORDER BY items.finished_at DESC, items.position LIMIT ? OFFSET ?",
+            (*params, limit, offset),
+        ).fetchall()
+        return [
+            {
+                **asdict(_item(row)),
+                "kind": row["job_kind"],
+                "options": json.loads(row["job_options"]),
+            }
+            for row in rows
+        ]
+
+    def library_count(self, query: str | None = None) -> int:
+        where = "WHERE items.status = ?"
+        params: list[Any] = [DONE]
+        if query:
+            where += " AND (items.title LIKE ? OR items.url LIKE ? OR items.collection LIKE ?)"
+            params += [f"%{query}%"] * 3
+        return self.conn.execute(
+            f"SELECT COUNT(*) FROM items JOIN jobs ON jobs.id = items.job_id {where}", params
+        ).fetchone()[0]
+
+    def delete_item(self, item_id: str) -> None:
+        """Forget one download; a job left with no items goes too."""
+        with self.conn:
+            row = self.conn.execute("SELECT job_id FROM items WHERE id = ?", (item_id,)).fetchone()
+            if not row:
+                return
+            self.conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
+            self.conn.execute(
+                "DELETE FROM jobs WHERE id = ? AND NOT EXISTS"
+                " (SELECT 1 FROM items WHERE job_id = ?)",
+                (row["job_id"], row["job_id"]),
+            )
 
     def _job(self, row: sqlite3.Row) -> Job:
         items = self.conn.execute(
@@ -193,6 +266,7 @@ class Store:
             kind=row["kind"],
             options=json.loads(row["options"]),
             items=[_item(r) for r in items],
+            archived=bool(row["archived"]),
         )
 
     # --- items ---

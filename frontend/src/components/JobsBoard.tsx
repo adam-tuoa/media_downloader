@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { cancelJob, deleteJob, jobHasActive, listJobs, type Job } from '../api';
+import { cancelJob, clearFinished, deleteJob, jobHasActive, listJobs, type Job } from '../api';
 import { formatWhen } from '../lib/format';
 import { describeJob } from '../lib/items';
 import ItemRow from './ItemRow';
@@ -33,7 +33,7 @@ function JobCard({ job }: { job: Job }) {
             type="button"
             onClick={() => remove.mutate(job.id)}
             className="text-slate-500 underline hover:text-slate-800"
-            title="Removes this from the list; files stay where they are"
+            title="Takes this off the board; it stays in the Library and files stay where they are"
           >
             Remove
           </button>
@@ -49,10 +49,15 @@ function JobCard({ job }: { job: Job }) {
 }
 
 export default function JobsBoard() {
+  const queryClient = useQueryClient();
   const jobs = useQuery({
     queryKey: ['jobs'],
     queryFn: listJobs,
     refetchInterval: (query) => (query.state.data?.some(jobHasActive) ? 1000 : 5000),
+  });
+  const clear = useMutation({
+    mutationFn: clearFinished,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['jobs'] }),
   });
 
   if (jobs.isPending) return <p className="text-center text-slate-500">Loading…</p>;
@@ -65,8 +70,21 @@ export default function JobsBoard() {
   if (!jobs.data.length)
     return <p className="text-center text-slate-500">Nothing yet — paste a link above to start.</p>;
 
+  const finished = jobs.data.filter((j) => !jobHasActive(j)).length;
   return (
     <div className="space-y-4">
+      {finished > 0 && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => clear.mutate()}
+            className="text-sm text-slate-600 underline hover:text-slate-900"
+            title="Finished downloads stay in the Library"
+          >
+            Clear finished ({finished})
+          </button>
+        </div>
+      )}
       {jobs.data.map((job) => (
         <JobCard key={job.id} job={job} />
       ))}

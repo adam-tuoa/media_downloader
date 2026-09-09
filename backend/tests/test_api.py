@@ -81,7 +81,8 @@ def test_job_lifecycle(client, fake, tmp_path):
     assert [j["id"] for j in listed] == [job["id"]]
 
     assert client.delete(f"/api/jobs/{job['id']}").json() == {"ok": True}
-    assert client.get(f"/api/jobs/{job['id']}").status_code == 404
+    assert client.get("/api/jobs").json() == []  # off the board...
+    assert client.get(f"/api/jobs/{job['id']}").json()["archived"] is True  # ...but not deleted
     assert list((tmp_path / "out").glob("*.mp4"))  # files are never deleted
 
 
@@ -268,3 +269,49 @@ def test_job_options_and_collections(client, fake, tmp_path):
         json={"links": [{"url": "https://youtu.be/v3000000000"}], "audio_format": "flac"},
     )
     assert bad.status_code == 422
+
+
+def test_library_lists_redownloads_and_forgets(client, fake, tmp_path):
+    job = client.post(
+        "/api/jobs",
+        json={
+            "links": [
+                {"url": "https://youtu.be/v1000000000", "title": "First"},
+                {"url": "https://youtu.be/v2000000000"},
+            ],
+            "kind": "audio",
+            "audio_format": "m4a",
+        },
+    ).json()
+    done = wait_for(client, job["id"], "done")
+    client.delete(f"/api/jobs/{job['id']}")  # archived, must still be in the library
+
+    lib = client.get("/api/library").json()
+    assert lib["total"] == 2 and [i["exists"] for i in lib["items"]] == [True, True]
+    assert (
+        lib["items"][0]["kind"] == "audio" and lib["items"][0]["options"]["audio_format"] == "m4a"
+    )
+
+    Path(done["items"][0]["file_path"]).unlink()  # the user moved/deleted it
+    lib = client.get("/api/library", params={"q": "v1000000000"}).json()  # matches the URL
+    assert lib["total"] == 1 and lib["items"][0]["exists"] is False
+
+    r = client.post(f"/api/library/{done['items'][0]['id']}/redownload")
+    assert r.status_code == 201
+    again = r.json()
+    assert again["kind"] == "audio" and again["options"] == {
+        "audio_format": "m4a",
+        "audio_bitrate": 320,
+    }
+    assert again["items"][0]["url"] == "https://www.youtube.com/watch?v=v1000000000"
+    assert again["items"][0]["title"] == done["items"][0]["title"]  # carried over
+    wait_for(client, again["id"], "done")
+    assert client.get("/api/library").json()["total"] == 3
+
+    assert client.delete(f"/api/library/{done['items'][0]['id']}").json() == {"ok": True}
+    assert client.get("/api/library").json()["total"] == 2
+    assert client.delete("/api/library/nope").status_code == 404
+    assert client.post("/api/library/nope/redownload").status_code == 404
+
+    assert client.post("/api/jobs/clear-finished").json()["archived"] == 1  # the redownload job
+    assert client.get("/api/jobs").json() == []

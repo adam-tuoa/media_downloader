@@ -29,6 +29,7 @@ export interface Item {
 export interface Job {
   id: string;
   created_at: number;
+  archived: boolean;
   kind: Kind;
   options: {
     height?: number | null;
@@ -143,6 +144,31 @@ export const saveSettings = (body: Partial<Settings>) =>
   request<Settings>('PUT', '/api/settings', body);
 export const reveal = (itemId?: string) =>
   request<{ ok: true; path: string }>('POST', '/api/reveal', { item_id: itemId ?? null });
+
+export interface LibraryItem extends Item {
+  kind: Kind;
+  options: Job['options'];
+  /** Whether the file is still where the app put it. */
+  exists: boolean;
+}
+
+export interface LibraryPage {
+  items: LibraryItem[];
+  total: number;
+  offset: number;
+}
+
+export const getLibrary = (q: string, offset = 0, limit = 100) =>
+  request<LibraryPage>(
+    'GET',
+    `/api/library?q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}`
+  );
+export const redownload = (itemId: string) =>
+  request<Job>('POST', `/api/library/${itemId}/redownload`);
+export const forgetDownload = (itemId: string) =>
+  request<{ ok: true }>('DELETE', `/api/library/${itemId}`);
+export const clearFinished = () =>
+  request<{ ok: true; archived: number }>('POST', '/api/jobs/clear-finished');
 
 export interface Health {
   status: 'ok' | 'degraded';

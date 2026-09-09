@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import JobsBoard from './components/JobsBoard';
+import LibraryView from './components/LibraryView';
 import NewJobForm from './components/NewJobForm';
 import SettingsPanel from './components/SettingsPanel';
 import StatusBar, { QuitButton } from './components/StatusBar';
+import { segmentClass } from './lib/ui';
+
+type View = 'downloads' | 'library';
 
 export default function App() {
+  const [view, setView] = useState<View>('downloads');
   const [showSettings, setShowSettings] = useState(false);
 
   return (
@@ -25,9 +30,33 @@ export default function App() {
       </header>
 
       <StatusBar />
-      <NewJobForm />
       {showSettings && <SettingsPanel />}
-      <JobsBoard />
+
+      <nav className="flex gap-2 rounded-lg bg-slate-200 p-1" aria-label="View">
+        <button
+          type="button"
+          className={segmentClass(view === 'downloads')}
+          onClick={() => setView('downloads')}
+        >
+          Downloads
+        </button>
+        <button
+          type="button"
+          className={segmentClass(view === 'library')}
+          onClick={() => setView('library')}
+        >
+          Library
+        </button>
+      </nav>
+
+      {view === 'downloads' ? (
+        <>
+          <NewJobForm />
+          <JobsBoard />
+        </>
+      ) : (
+        <LibraryView onRequeued={() => setView('downloads')} />
+      )}
     </main>
   );
 }

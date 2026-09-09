@@ -1,6 +1,6 @@
 [project]
 name = "media-downloader"
-version = "0.4.1"
+version = "0.5.0"
 description = "Desktop batch downloader for YouTube / Vimeo / Bandcamp, built on yt-dlp"
 requires-python = ">=3.13"
 dependencies = [

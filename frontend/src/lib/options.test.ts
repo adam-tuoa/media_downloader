@@ -15,7 +15,7 @@ describe('options', () => {
     expect(videoHeight('720')).toBe(720);
   });
   it('describes jobs in plain words', () => {
-    const base = { id: 'j', created_at: 0, items: [] };
+    const base = { id: 'j', created_at: 0, archived: false, items: [] };
     expect(describeJob({ ...base, kind: 'audio', options: { audio_format: 'best' } })).toBe(
       'Audio · best original'
     );
