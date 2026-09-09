@@ -90,6 +90,30 @@ def test_base_args_apply_cookies_and_allowlist(monkeypatch):
     assert "--use-extractors" not in args
 
 
+def test_js_runtime_prefers_bundled_quickjs_over_deno(monkeypatch, tmp_path):
+    monkeypatch.setattr(ytdlp, "BIN_DIR", tmp_path)
+    monkeypatch.setattr("shutil.which", lambda *_a, **_k: None)
+    assert ytdlp.js_runtime_args() == []
+    deno = tmp_path / f"deno{ytdlp._EXE_SUFFIX}"
+    deno.write_bytes(b"")
+    assert ytdlp.js_runtime_args() == ["--js-runtimes", f"deno:{deno}"]
+    qjs = tmp_path / f"qjs{ytdlp._EXE_SUFFIX}"
+    qjs.write_bytes(b"")
+    assert ytdlp.js_runtime_args() == ["--no-js-runtimes", "--js-runtimes", f"quickjs:{qjs}"]
+    assert "--no-js-runtimes" in ytdlp.base_args()
+
+
+def test_complete_chapters_closes_the_ffprobe_path():
+    chapters = [{"start_time": 0, "end_time": 5, "title": "a"}, {"start_time": 5, "title": "b"}]
+    fixed = ytdlp.complete_chapters({"duration": 12, "chapters": chapters})
+    assert fixed["chapters"][-1] == {"start_time": 5, "title": "b", "end_time": 12}
+    assert chapters[-1] == {"start_time": 5, "title": "b"}  # caller's dict untouched
+    assert ytdlp.complete_chapters({"chapters": chapters})["chapters"] is None
+    complete = {"duration": 12, "chapters": [{"start_time": 0, "end_time": 12}]}
+    assert ytdlp.complete_chapters(complete) is complete
+    assert ytdlp.complete_chapters({"duration": 12}) == {"duration": 12}
+
+
 def test_frozen_parent_environment_is_scrubbed_for_children():
     env = {
         "PATH": "/usr/bin",

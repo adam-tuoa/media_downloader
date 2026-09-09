@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy backend/bin (yt-dlp, ffmpeg, deno) into the PyInstaller output, untouched, then re-seal.
+"""Copy backend/bin (yt-dlp, ffmpeg, qjs) into the PyInstaller output, untouched, then re-seal.
 
 PyInstaller re-signs and rewrites executables it collects as data; yt-dlp's executable (itself a
 PyInstaller app) does not survive that. So the bundle is built without bin/, and this script
@@ -10,7 +10,7 @@ drops the pristine directory into the place the app looks (see ytdlp._default_bi
 
 On macOS the copy must go under Resources, not Frameworks: codesign treats dotted directory
 names (yt-dlp's *.dist-info) under Frameworks as broken nested bundles. Afterwards the unsigned
-tools (ffmpeg/ffprobe) get an ad-hoc signature and the whole app is re-signed, otherwise a
+tools (ffmpeg, qjs) get an ad-hoc signature and the whole app is re-signed, otherwise a
 quarantined download shows Gatekeeper's "damaged and can't be opened" instead of the usual
 right-click -> Open path.
 

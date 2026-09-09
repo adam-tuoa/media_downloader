@@ -2,7 +2,7 @@
 
 We drive the official binary rather than importing ``yt_dlp``: the binary self-updates
 (``yt-dlp -U``) independently of app releases, which matters because YouTube changes constantly.
-Helper binaries (ffmpeg, deno) live in ``backend/bin`` and are put on PATH for every call.
+Helper binaries (ffmpeg, qjs) live in ``backend/bin`` and are put on PATH for every call.
 
 Processes run through plain ``subprocess`` in worker threads, not asyncio's subprocess support:
 on Windows, uvicorn's ``--reload`` mode uses a SelectorEventLoop, which cannot spawn processes
@@ -120,7 +120,7 @@ def _ensure_executable(path: Path) -> str:
 
 
 def executable(name: str) -> str | None:
-    """Path to a bundled helper binary (ffmpeg, deno), falling back to whatever is on PATH."""
+    """Path to a bundled helper binary (ffmpeg, qjs), falling back to whatever is on PATH."""
     import shutil
 
     bundled = BIN_DIR / f"{name}{_EXE_SUFFIX}"
@@ -157,7 +157,7 @@ def clean_frozen_env(env: dict[str, str]) -> dict[str, str]:
     yt-dlp's executable is itself a PyInstaller app: with our bootloader's ``_PYI_*`` variables
     in its environment it tries to read *our* archive and dies ("Could not load PyInstaller's
     embedded PKG archive"). PyInstaller also points ``LD_LIBRARY_PATH`` at our bundled libraries,
-    which deno/ffmpeg must not load."""
+    which qjs/ffmpeg must not load."""
     cleaned = {k: v for k, v in env.items() if not k.startswith("_PYI_") and k != "_MEIPASS2"}
     if "LD_LIBRARY_PATH_ORIG" in cleaned:
         original = cleaned.pop("LD_LIBRARY_PATH_ORIG")
@@ -168,15 +168,32 @@ def clean_frozen_env(env: dict[str, str]) -> dict[str, str]:
     return cleaned
 
 
+def js_runtime_args() -> list[str]:
+    """YouTube's challenges need a JavaScript runtime. We bundle QuickJS-ng (``qjs``, 2 MB) instead
+    of yt-dlp's default Deno (93 MB): measured 2026-09-09 on an Intel Mac, a YouTube probe takes
+    ~4 s longer, once per link (downloads reuse the probe). A checkout that still has only deno
+    keeps working. yt-dlp would rank deno above quickjs, hence ``--no-js-runtimes`` first."""
+    qjs = executable("qjs")
+    if qjs:
+        return ["--no-js-runtimes", "--js-runtimes", f"quickjs:{qjs}"]
+    deno = executable("deno")
+    if deno:
+        return ["--js-runtimes", f"deno:{deno}"]
+    return []
+
+
 def base_args() -> list[str]:
-    """Flags applied to every invocation: ignore user config, locate bundled ffmpeg/deno."""
+    """Flags applied to every invocation: ignore user config, locate bundled ffmpeg and qjs.
+
+    No ffprobe is bundled (it was a second 77 MB copy of ffmpeg's libraries). yt-dlp falls back to
+    ``ffmpeg -i`` for codec checks and only *requires* ffprobe for things this app never does:
+    concatenation, HLS fixups, embedding info-json, thumbnails in MKV (we always merge to MP4)
+    and, for M4A, only after mutagen - which yt-dlp's build includes - has failed."""
     args = ["--ignore-config", "--no-warnings", "--color", "no_color"]
     ffmpeg = executable("ffmpeg")
     if ffmpeg:
         args += ["--ffmpeg-location", os.path.dirname(ffmpeg)]
-    deno = executable("deno")
-    if deno:
-        args += ["--js-runtimes", f"deno:{deno}"]
+    args += js_runtime_args()
     if options.cookies_browser:
         args += ["--cookies-from-browser", options.cookies_browser]
     if not links.allow_any_site():
@@ -240,6 +257,18 @@ def parse_line(line: str) -> Progress | Path | None:
             postprocessor=data.get("postprocessor"),
         )
     return None
+
+
+def complete_chapters(info: dict) -> dict:
+    """A copy of ``info`` whose last chapter has an end time. Without one, yt-dlp's metadata step
+    asks ffprobe for the file's duration - and we ship no ffprobe (see base_args)."""
+    chapters = info.get("chapters")
+    if not chapters or not isinstance(chapters[-1], dict) or chapters[-1].get("end_time"):
+        return info
+    if not info.get("duration"):
+        return {**info, "chapters": None}
+    last = {**chapters[-1], "end_time": info["duration"]}
+    return {**info, "chapters": [*chapters[:-1], last]}
 
 
 def template_root(output_template: str) -> Path:
@@ -324,7 +353,14 @@ def _stream_sync(
     stderr_chunks: list[bytes] = []
 
     def drain_stderr() -> None:
-        stderr_chunks.append(proc.stderr.read())  # type: ignore[union-attr]
+        # yt-dlp prints the *postprocess* progress template to stderr (the download one goes to
+        # stdout); pass those lines on so "Converting audio" etc. show, keep the rest for errors.
+        for raw in proc.stderr:  # type: ignore[union-attr]
+            line = raw.decode("utf-8", "replace").rstrip("\r\n")
+            if line.startswith(POSTPROCESS_PREFIX):
+                on_line(line)
+            else:
+                stderr_chunks.append(raw)
 
     def watch_cancel() -> None:
         while proc.poll() is None:
@@ -433,7 +469,7 @@ async def download(
         with tempfile.NamedTemporaryFile(
             "w", suffix=".info.json", prefix="md-", delete=False, encoding="utf-8"
         ) as fh:
-            json.dump(info, fh)
+            json.dump(complete_chapters(info), fh)
             info_file = Path(fh.name)
         args += ["--load-info-json", str(info_file)]
     loop = asyncio.get_running_loop()

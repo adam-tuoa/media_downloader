@@ -32,8 +32,9 @@ Developer notes on how that build is made are under [Packaging](#packaging).
 - **Backend:** Python 3.13, FastAPI, driving the official `yt-dlp` executable (not the library —
   the executable self-updates, which matters because YouTube changes constantly)
 - **Frontend:** React 19, TypeScript, Vite, Tailwind v4, TanStack Query
-- **Bundled tools:** `yt-dlp`, `ffmpeg`/`ffprobe`, `deno` (yt-dlp needs a JavaScript runtime to
-  solve YouTube's challenges) — downloaded into `backend/bin/` by a script, never committed
+- **Bundled tools:** `yt-dlp`, `ffmpeg`, `qjs` (QuickJS-ng — yt-dlp needs a JavaScript runtime to
+  solve YouTube's challenges; its default Deno is 93 MB, QuickJS is 2 MB and about four seconds slower
+  per YouTube link) — downloaded into `backend/bin/` by a script, never committed
 
 ## Setup
 
@@ -44,7 +45,7 @@ Requirements: Python 3.13, Node 24 (or 22+), git. No system ffmpeg needed — it
 python3.13 -m venv .venv
 .venv/bin/pip install -e "backend[dev]"
 
-# 2. Helper binaries (~350 MB, once). The first yt-dlp launch is slow on macOS while the OS
+# 2. Helper binaries (~200 MB, once). The first yt-dlp launch is slow on macOS while the OS
 #    scans the new files — the script does that launch for you, so expect ~30 s here.
 .venv/bin/python scripts/fetch_binaries.py
 
@@ -65,7 +66,7 @@ cd media_downloader
 py -3 -m venv .venv
 .venv\Scripts\python -m pip install --upgrade pip
 .venv\Scripts\pip install -e "backend[dev]"
-.venv\Scripts\python scripts\fetch_binaries.py     # ~250 MB; Defender may pause on yt-dlp.exe once
+.venv\Scripts\python scripts\fetch_binaries.py     # ~200 MB download; Defender may pause on yt-dlp.exe once
 cd frontend; npm install; cd ..
 ```
 

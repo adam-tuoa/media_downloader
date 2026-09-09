@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download yt-dlp, ffmpeg/ffprobe and deno for this platform into backend/bin/.
+"""Download yt-dlp, ffmpeg and qjs (QuickJS-ng) for this platform into backend/bin/.
 
 Run once for local development; CI runs it on each build target before packaging.
 Idempotent: existing files are kept unless --force is given.
@@ -7,6 +7,11 @@ Idempotent: existing files are kept unless --force is given.
 yt-dlp is fetched as the *onedir* build (a directory, backend/bin/yt-dlp/), not the single-file
 executable: the single-file build unpacks itself on every launch and macOS then security-scans
 every unpacked library, which measured at ~23 s per invocation. The onedir build pays that once.
+
+qjs is yt-dlp's JavaScript runtime for YouTube's challenges. yt-dlp's default is Deno, but Deno is
+93 MB and QuickJS-ng is 2 MB; measured 2026-09-09 on an Intel Mac, a YouTube probe takes ~4 s
+longer with QuickJS, once per link (downloads reuse the probe). No ffprobe: yt-dlp only needs it
+for things this app never does (see ytdlp.base_args).
 """
 
 from __future__ import annotations
@@ -28,7 +33,7 @@ ROOT = Path(__file__).resolve().parent.parent
 BIN_DIR = ROOT / "backend" / "bin"
 
 YTDLP = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/{asset}"
-DENO = "https://github.com/denoland/deno/releases/latest/download/{asset}"
+QJS = "https://github.com/quickjs-ng/quickjs/releases/latest/download/{asset}"
 FFMPEG_BUILDS = "https://github.com/yt-dlp/FFmpeg-Builds/releases/latest/download/{asset}"
 EVERMEET = "https://evermeet.cx/ffmpeg/getrelease/{tool}/zip"  # macOS x86_64 static builds
 
@@ -117,17 +122,18 @@ def ytdlp_executable(directory: Path) -> Path:
     raise FileNotFoundError(f"no yt-dlp executable in {directory}")
 
 
-def fetch_deno(system: str, arch: str) -> None:
-    triple = {
-        ("Darwin", "x86_64"): "x86_64-apple-darwin",
-        ("Darwin", "arm64"): "aarch64-apple-darwin",
-        ("Linux", "x86_64"): "x86_64-unknown-linux-gnu",
-        ("Linux", "arm64"): "aarch64-unknown-linux-gnu",
-        ("Windows", "x86_64"): "x86_64-pc-windows-msvc",
-        ("Windows", "arm64"): "aarch64-pc-windows-msvc",
+def fetch_qjs(system: str, arch: str) -> None:
+    """QuickJS-ng ships plain executables (the Linux ones statically linked). yt-dlp wants the
+    file called qjs / qjs.exe, or an explicit path - we give both."""
+    asset = {
+        ("Darwin", "x86_64"): "qjs-darwin-x86_64",
+        ("Darwin", "arm64"): "qjs-darwin-arm64",
+        ("Linux", "x86_64"): "qjs-linux-x86_64",
+        ("Linux", "arm64"): "qjs-linux-aarch64",
+        ("Windows", "x86_64"): "qjs-windows-x86_64.exe",
+        ("Windows", "arm64"): "qjs-windows-x86_64.exe",  # no arm64 build; runs under emulation
     }[(system, arch)]
-    exe = "deno.exe" if system == "Windows" else "deno"
-    save(exe, member_from_zip(fetch(DENO.format(asset=f"deno-{triple}.zip")), exe))
+    save("qjs.exe" if system == "Windows" else "qjs", fetch(QJS.format(asset=asset)))
 
 
 def fetch_ffmpeg(system: str, arch: str) -> None:
@@ -137,22 +143,17 @@ def fetch_ffmpeg(system: str, arch: str) -> None:
             if arch == "arm64"
             else "ffmpeg-master-latest-win64-gpl.zip"
         )
-        data = fetch(FFMPEG_BUILDS.format(asset=asset))
-        for tool in ("ffmpeg.exe", "ffprobe.exe"):
-            save(tool, member_from_zip(data, tool))
+        save("ffmpeg.exe", member_from_zip(fetch(FFMPEG_BUILDS.format(asset=asset)), "ffmpeg.exe"))
     elif system == "Linux":
         asset = (
             "ffmpeg-master-latest-linuxarm64-gpl.tar.xz"
             if arch == "arm64"
             else "ffmpeg-master-latest-linux64-gpl.tar.xz"
         )
-        data = fetch(FFMPEG_BUILDS.format(asset=asset))
-        for tool in ("ffmpeg", "ffprobe"):
-            save(tool, member_from_tar(data, tool))
+        save("ffmpeg", member_from_tar(fetch(FFMPEG_BUILDS.format(asset=asset)), "ffmpeg"))
     else:  # macOS: evermeet ships x86_64 builds (run under Rosetta on Apple Silicon)
         try:
-            for tool in ("ffmpeg", "ffprobe"):
-                save(tool, member_from_zip(fetch(EVERMEET.format(tool=tool)), tool))
+            save("ffmpeg", member_from_zip(fetch(EVERMEET.format(tool="ffmpeg")), "ffmpeg"))
         except Exception as exc:  # noqa: BLE001 - any download failure falls back to the system copy
             system_ffmpeg = shutil.which("ffmpeg")
             if not system_ffmpeg:
@@ -164,7 +165,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--force", action="store_true", help="re-download even if present")
     parser.add_argument(
-        "--only", nargs="*", choices=["yt-dlp", "deno", "ffmpeg"], help="subset to fetch"
+        "--only", nargs="*", choices=["yt-dlp", "qjs", "ffmpeg"], help="subset to fetch"
     )
     args = parser.parse_args()
 
@@ -173,9 +174,14 @@ def main() -> int:
     BIN_DIR.mkdir(parents=True, exist_ok=True)
     ext = ".exe" if system == "Windows" else ""
 
+    for stale in ("deno", "ffprobe"):  # bundled before 2026-09-09; no longer used
+        if (BIN_DIR / f"{stale}{ext}").exists():
+            (BIN_DIR / f"{stale}{ext}").unlink()
+            print(f"removed {stale}{ext} (no longer bundled)")
+
     steps = {
         "yt-dlp": ("yt-dlp", fetch_ytdlp),  # a directory (onedir build)
-        "deno": (f"deno{ext}", fetch_deno),
+        "qjs": (f"qjs{ext}", fetch_qjs),
         "ffmpeg": (f"ffmpeg{ext}", fetch_ffmpeg),
     }
     for name, (marker, fn) in steps.items():

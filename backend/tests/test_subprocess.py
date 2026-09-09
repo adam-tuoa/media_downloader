@@ -44,7 +44,9 @@ print('PROGRESS {"status":"downloading","downloaded":2,"total":4,"estimate":NA,"
       flush=True)
 print('PROGRESS {"status":"finished","downloaded":4,"total":4,"estimate":NA,"speed":NA,"eta":NA}',
       flush=True)
-print('PP {"status":"started","postprocessor":"Merger"}', flush=True)
+# The real yt-dlp writes postprocess progress to stderr (checked 2026.08.19); mirror that.
+print('PP {"status":"started","postprocessor":"Merger"}', file=sys.stderr, flush=True)
+print("WARNING: something harmless", file=sys.stderr, flush=True)
 print("FILEPATH " + str(out), flush=True)
 """
 

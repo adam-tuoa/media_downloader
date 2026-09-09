@@ -37,7 +37,7 @@ jobs:
       - name: Install the backend and PyInstaller
         run: pip install -e "backend[build]"
 
-      - name: Fetch yt-dlp, ffmpeg and deno for this platform
+      - name: Fetch yt-dlp, ffmpeg and qjs for this platform
         run: python scripts/fetch_binaries.py
 
       # Windows: no PyInstaller - Defender quarantines its exes. Embeddable Python + Inno Setup.
@@ -57,7 +57,7 @@ jobs:
         if: runner.os != 'Windows'
         run: pyinstaller --noconfirm --clean packaging/MediaDownloader.spec
 
-      - name: Add yt-dlp, ffmpeg and deno to the bundle (verbatim)
+      - name: Add yt-dlp, ffmpeg and qjs to the bundle (verbatim)
         if: runner.os != 'Windows'
         run: python scripts/bundle_binaries.py
 

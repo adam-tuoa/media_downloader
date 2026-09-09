@@ -4,7 +4,7 @@
 Layout produced under build/windows/:
     python/                 python.org "embeddable" runtime (pythonw.exe is signed by the PSF)
     Lib/site-packages/      our `app` package (incl. the built UI) and its dependencies
-    Lib/site-packages/bin/  yt-dlp, ffmpeg, deno (verbatim; the app finds them next to the package)
+    Lib/site-packages/bin/  yt-dlp, ffmpeg, qjs (verbatim; the app finds them next to the package)
     MediaDownloader.cmd     fallback launcher; the installer's shortcut runs pythonw.exe directly
 
 Must run on Windows with the same Python minor version we ship (wheels are platform-specific).
@@ -61,7 +61,7 @@ def main() -> int:
     )
     assert (site / "app" / "static" / "index.html").exists(), "built UI missing - run npm run build"
 
-    print("adding yt-dlp, ffmpeg and deno")
+    print("adding yt-dlp, ffmpeg and qjs")
     # pip --target drops console-script wrappers (uvicorn.exe, media-downloader.exe) into
     # <target>/bin; they can't work in this layout and the real binaries go there instead.
     shutil.rmtree(site / "bin", ignore_errors=True)

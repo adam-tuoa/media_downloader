@@ -1,4 +1,4 @@
-# PyInstaller spec: onedir build of the desktop app (backend + built UI + yt-dlp/ffmpeg/deno).
+# PyInstaller spec: onedir build of the desktop app (backend + built UI + yt-dlp/ffmpeg/qjs).
 # Build from the repo root:  pyinstaller --noconfirm packaging/MediaDownloader.spec
 import sys
 from pathlib import Path
@@ -10,7 +10,7 @@ a = Analysis(
     [str(BACKEND / "app" / "launcher.py")],
     pathex=[str(BACKEND)],
     binaries=[],
-    # NOTE: backend/bin (yt-dlp, ffmpeg, deno) is deliberately NOT listed here. PyInstaller
+    # NOTE: backend/bin (yt-dlp, ffmpeg, qjs) is deliberately NOT listed here. PyInstaller
     # re-signs/rewrites executables it collects, which breaks yt-dlp's own PyInstaller build.
     # scripts/bundle_binaries.py copies bin/ into the finished bundle verbatim instead.
     datas=[
