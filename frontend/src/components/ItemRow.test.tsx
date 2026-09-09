@@ -73,6 +73,27 @@ describe('ItemRow', () => {
     expect(screen.getByText('https://youtu.be/abc')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
   });
+  it('opens a finished file from its title or thumbnail', () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ItemRow
+          item={{
+            ...base,
+            status: 'done',
+            title: 'A video',
+            file_path: '/x/A video.mp4',
+            thumbnail: 'https://example.test/t.jpg',
+          }}
+        />
+      </QueryClientProvider>
+    );
+    expect(screen.getByRole('button', { name: 'A video' })).toHaveAttribute(
+      'title',
+      'Open in your player'
+    );
+    expect(screen.getByRole('button', { name: 'Open A video' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show file' })).toBeInTheDocument();
+  });
   it('offers Retry after a failure', () => {
     render(
       <QueryClientProvider client={new QueryClient()}>

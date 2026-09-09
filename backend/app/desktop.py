@@ -22,6 +22,20 @@ def reveal_command(path: Path, platform: str, is_file: bool) -> list[str] | str:
     return ["xdg-open", str(path.parent if is_file else path)]
 
 
+def open_command(path: Path, platform: str) -> list[str]:
+    """The command that opens a file with the program the OS uses for it (macOS / Linux)."""
+    return ["open" if platform == "darwin" else "xdg-open", str(path)]
+
+
+def open_file(path: Path) -> None:
+    """Open a finished download in the user's default player."""
+    path = Path(path)
+    if sys.platform == "win32":
+        os.startfile(path)  # type: ignore[attr-defined]  # the shell's "open" verb
+        return
+    subprocess.Popen(open_command(path, sys.platform))
+
+
 def reveal(path: Path) -> None:
     path = Path(path)
     if sys.platform == "win32" and not path.is_file():

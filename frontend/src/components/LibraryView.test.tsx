@@ -81,5 +81,10 @@ describe('LibraryView', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Download again' })[1]);
     await vi.waitFor(() => expect(onRequeued).toHaveBeenCalled());
     expect(calls).toContain('POST /api/library/i2/redownload');
+
+    // A file on disk opens from its title; a missing one is plain text.
+    fireEvent.click(screen.getByRole('button', { name: 'A Song' }));
+    await vi.waitFor(() => expect(calls).toContain('POST /api/items/i1/open'));
+    expect(screen.queryByRole('button', { name: 'Gone' })).not.toBeInTheDocument();
   });
 });

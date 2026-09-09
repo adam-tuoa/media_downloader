@@ -224,6 +224,20 @@ def test_reveal_opens_folder_or_file(client, fake, monkeypatch, tmp_path):
     assert opened[-1].endswith(".mp4")
 
 
+def test_open_plays_a_finished_file(client, fake, monkeypatch):
+    opened = []
+    monkeypatch.setattr(desktop, "open_file", lambda path: opened.append(str(path)))
+    job = client.post("/api/jobs", json={"links": [{"url": "https://youtu.be/v1000000000"}]}).json()
+    done = wait_for(client, job["id"], "done")
+    item_id = done["items"][0]["id"]
+    assert client.post(f"/api/items/{item_id}/open").status_code == 200
+    assert opened[-1].endswith(".mp4")
+    Path(done["items"][0]["file_path"]).unlink()
+    r = client.post(f"/api/items/{item_id}/open")
+    assert r.status_code == 404 and "isn't where" in r.json()["detail"]
+    assert client.post("/api/items/nope/open").status_code == 404
+
+
 def test_job_options_and_collections(client, fake, tmp_path):
     r = client.post(
         "/api/jobs",

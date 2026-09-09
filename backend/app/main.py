@@ -439,6 +439,19 @@ async def forget_download(item_id: str, request: Request) -> dict:
     return {"ok": True}
 
 
+@app.post("/api/items/{item_id}/open")
+async def open_item(item_id: str, request: Request) -> dict:
+    """Open a finished item's file in whatever the OS plays it with."""
+    item = _store(request).get_item(item_id)
+    if item is None or not item.file_path:
+        raise HTTPException(404, "No such download")
+    path = Path(item.file_path)
+    if not await asyncio.to_thread(path.exists):
+        raise HTTPException(404, "The file isn't where it was saved any more")
+    await asyncio.to_thread(desktop.open_file, path)
+    return {"ok": True, "path": str(path)}
+
+
 @app.post("/api/items/{item_id}/cancel")
 async def cancel_item(item_id: str, request: Request) -> dict:
     if _store(request).get_item(item_id) is None:

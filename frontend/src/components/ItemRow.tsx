@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { cancelItem, retryItem, reveal, type Item } from '../api';
 import { barWidth, describeItem } from '../lib/items';
+import { useOpenFile } from '../lib/openFile';
+import { Thumbnail, Title } from './FileLink';
 
 const STATUS_STYLE: Record<Item['status'], { chip: string; bar: string; label: string }> = {
   queued: { chip: 'bg-slate-200 text-slate-700', bar: 'bg-slate-300', label: 'Waiting' },
@@ -16,30 +18,31 @@ export default function ItemRow({ item }: { item: Item }) {
   const cancel = useMutation({ mutationFn: cancelItem, onSuccess: refresh });
   const retry = useMutation({ mutationFn: retryItem, onSuccess: refresh });
   const show = useMutation({ mutationFn: reveal });
+  const open = useOpenFile();
 
   const style = STATUS_STYLE[item.status];
   const title = item.title ?? item.url;
+  const onOpen = item.status === 'done' && item.file_path ? () => open.mutate(item.id) : undefined;
   const indeterminate =
     item.status === 'running' && barWidth(item) === 0 && item.stage !== 'Downloading';
 
   return (
     <li className="flex items-start gap-3 py-3">
-      <div className="h-12 w-20 shrink-0 overflow-hidden rounded bg-slate-200">
-        {item.thumbnail && (
-          <img src={item.thumbnail} alt="" className="h-full w-full object-cover" />
-        )}
-      </div>
+      <Thumbnail src={item.thumbnail} title={title} onOpen={onOpen} />
 
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium" title={title}>
-          {title}
-        </p>
+        <Title text={title} onOpen={onOpen} />
         <p
           className={`truncate text-sm ${item.status === 'error' ? 'text-red-700' : 'text-slate-600'}`}
           title={describeItem(item)}
         >
           {describeItem(item)}
         </p>
+        {open.error && (
+          <p role="alert" className="text-sm text-red-700">
+            {open.error.message}
+          </p>
+        )}
         <div className="mt-2 h-2 w-full overflow-hidden rounded bg-slate-100">
           <div
             role="progressbar"

@@ -146,6 +146,9 @@ export const retryItem = (id: string) => request<{ ok: true }>('POST', `/api/ite
 export const getSettings = () => request<Settings>('GET', '/api/settings');
 export const saveSettings = (body: Partial<Settings>) =>
   request<Settings>('PUT', '/api/settings', body);
+/** Open a finished download in whatever the OS plays it with. */
+export const openFile = (itemId: string) =>
+  request<{ ok: true; path: string }>('POST', `/api/items/${itemId}/open`);
 export const reveal = (itemId?: string) =>
   request<{ ok: true; path: string }>('POST', '/api/reveal', { item_id: itemId ?? null });
 

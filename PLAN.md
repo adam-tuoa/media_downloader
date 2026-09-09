@@ -229,8 +229,9 @@ To do, roughly in order of value for effort (list reviewed with Adam 2026-09-09)
       into a folder" = a user-made group: moves the files under `<output>/<group>/` and sets `collection` on the
       items so *Download again* lands there too (`destination()` already does that). Never overwrite; skip missing
       files with a message. Same icon set on the jobs board.
-- [ ] **"Open" in the Library** launches the file in the OS default player (`open` / `os.startfile` /
-      `xdg-open`) — one line; Adam: enough for now. An in-app player (`GET /api/library/{id}/file`, Starlette 1.6
+- [x] **Open in the OS player — done 2026-09-09.** The thumbnail and the title of any finished download, on the
+      board and in the Library, open the file with whatever the OS uses for it (`open` / `os.startfile` /
+      `xdg-open`; `POST /api/items/{id}/open`, 404 when the file has gone). An in-app player (`GET /api/library/{id}/file`, Starlette 1.6
       `FileResponse` handles Range requests, behind `<video>`/`<audio>`) stays optional; note `.opus` and the
       vp9/av1 MP4s from 1440p/2160p may not play in Safari.
 - [ ] **A window instead of a browser tab.** Cheapest: Chromium "app mode" — launch Edge (always present on

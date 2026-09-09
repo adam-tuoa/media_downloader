@@ -4,6 +4,8 @@ import { forgetDownload, getLibrary, redownload, reveal, type LibraryItem } from
 import { baseName, formatDuration, formatWhen } from '../lib/format';
 import { describeJob } from '../lib/items';
 import { inputClass } from '../lib/ui';
+import { useOpenFile } from '../lib/openFile';
+import { Thumbnail, Title } from './FileLink';
 
 const PAGE = 100;
 
@@ -19,6 +21,9 @@ function LibraryRow({ item, onRequeued }: { item: LibraryItem; onRequeued: () =>
   });
   const forget = useMutation({ mutationFn: forgetDownload, onSuccess: refresh });
   const show = useMutation({ mutationFn: reveal });
+  const open = useOpenFile(refresh); // a failed open usually means the file has gone: re-check
+  const title = item.title ?? item.url;
+  const onOpen = item.exists ? () => open.mutate(item.id) : undefined;
 
   const what = describeJob({
     id: '',
@@ -41,18 +46,17 @@ function LibraryRow({ item, onRequeued }: { item: LibraryItem; onRequeued: () =>
 
   return (
     <li className="flex items-start gap-3 py-3">
-      <div className="h-12 w-20 shrink-0 overflow-hidden rounded bg-slate-200">
-        {item.thumbnail && (
-          <img src={item.thumbnail} alt="" className="h-full w-full object-cover" />
-        )}
-      </div>
+      <Thumbnail src={item.thumbnail} title={title} onOpen={onOpen} />
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium" title={item.title ?? item.url}>
-          {item.title ?? item.url}
-        </p>
+        <Title text={title} onOpen={onOpen} />
         <p className="truncate text-sm text-slate-600" title={meta}>
           {meta}
         </p>
+        {open.error && (
+          <p role="alert" className="text-sm text-red-700">
+            {open.error.message}
+          </p>
+        )}
         <p
           className={`truncate text-xs ${item.exists ? 'text-slate-500' : 'text-amber-700'}`}
           title={item.file_path ?? ''}

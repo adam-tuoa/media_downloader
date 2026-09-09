@@ -12,6 +12,12 @@ def test_reveal_commands_per_platform():
     assert desktop.reveal_command(folder, "linux", False) == ["xdg-open", str(folder)]
 
 
+def test_open_commands_per_platform():
+    file = Path("/Users/dad/Downloads/Media Downloader/01 - Song.mp3")
+    assert desktop.open_command(file, "darwin") == ["open", str(file)]
+    assert desktop.open_command(file, "linux") == ["xdg-open", str(file)]
+
+
 def test_windows_explorer_select_is_one_quoted_argument():
     # Paths with spaces are the case that used to open Documents instead of the file.
     file = Path(r"C:\Users\Dad\Downloads\Media Downloader\01 - Song.mp3")
