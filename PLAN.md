@@ -242,7 +242,10 @@ To do, roughly in order of value for effort (list reviewed with Adam 2026-09-09)
       `xdg-open`; `POST /api/items/{id}/open`, 404 when the file has gone). An in-app player (`GET /api/library/{id}/file`, Starlette 1.6
       `FileResponse` handles Range requests, behind `<video>`/`<audio>`) stays optional; note `.opus` and the
       vp9/av1 MP4s from 1440p/2160p may not play in Safari.
-- [ ] **A window instead of a browser tab.** Cheapest: Chromium "app mode" — launch Edge (always present on
+- [ ] **A window instead of a browser tab.** Decided 2026-09-09: **pywebview first** (native window on the OS
+      engine — WKWebView / WebView2 — our icon, close-to-quit, a native folder picker for Settings), **app mode as the
+      fallback** where pywebview can't run (Linux without webkit2gtk). Electron (150-200 MB, Chromium bundled) and
+      Tauri (Rust rewrite of the launcher) rejected. The options, for the record — cheapest: Chromium "app mode" — launch Edge (always present on
       Windows), Chrome or Chromium with `--app=<launch URL>` when one is installed, else the default browser as
       now. No tabs or address bar, own taskbar entry, zero new dependencies. Next step up: pywebview (native
       WKWebView / WebView2; Linux needs system webkit2gtk, so keep the browser fallback there). Tauri (listed
