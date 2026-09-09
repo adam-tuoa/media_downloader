@@ -45,6 +45,11 @@ export default function StatusBar() {
           {h.ytdlp_update.message} Downloads will start once that’s done.
         </p>
       )}
+      {h?.cookies_warning && (
+        <p className="rounded-md bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          {h.cookies_warning}
+        </p>
+      )}
       {h?.status === 'degraded' && (
         <p role="alert" className="rounded-md bg-red-100 px-4 py-2 text-sm text-red-800">
           The downloader engine (yt-dlp) isn’t working. Try Settings → Update now, or reinstall.

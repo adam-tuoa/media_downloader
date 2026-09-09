@@ -204,6 +204,8 @@ export interface Health {
   ytdlp_update: { state: 'idle' | 'running' | 'done' | 'failed'; message: string };
   app_update: { latest: string; url: string } | null;
   quit_requested: boolean;
+  /** Set when the chosen browser's cookies can't be read and downloads run without them. */
+  cookies_warning: string | null;
 }
 
 export const getHealth = () => request<Health>('GET', '/api/health');

@@ -164,7 +164,7 @@ _HINTS = (
         " Access, switch on Media Downloader (or Terminal, when running from source), then try"
         " again. Firefox and Chrome don't need this.",
     ),
-    ("cookies", "Needs a signed-in browser - set “Use cookies from” in Settings."),
+    # Specific messages first: several of them also mention "cookies".
     (
         "sign in to confirm",
         "The site wants a sign-in check - set “Use cookies from” in Settings, or try later.",
@@ -174,6 +174,7 @@ _HINTS = (
         "This video is private - you'd need to be signed in to an account that can see it.",
     ),
     ("members-only", "This is for channel members only - set “Use cookies from” in Settings."),
+    ("cookies", "Needs a signed-in browser - set “Use cookies from” in Settings."),
     ("video unavailable", "This video isn't available any more."),
 )
 

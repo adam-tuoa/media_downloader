@@ -17,6 +17,7 @@ const health = (desktop: boolean, extra: object = {}) => ({
   ytdlp_update: { state: 'idle', message: '' },
   app_update: null,
   quit_requested: false,
+  cookies_warning: null,
   ...extra,
 });
 
@@ -85,6 +86,17 @@ describe('App', () => {
     expect(screen.getByText(/Full Disk Access/)).toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('warns when the browser cookies could not be read', async () => {
+    stubApi(
+      health(false, {
+        cookies_warning:
+          "Couldn't read Safari's cookies (x), so downloads are running without them.",
+      })
+    );
+    renderApp();
+    expect(await screen.findByText(/Couldn't read Safari's cookies/)).toBeInTheDocument();
   });
 
   it('shows Quit and the update banner in desktop mode', async () => {

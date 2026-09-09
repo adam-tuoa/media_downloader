@@ -99,6 +99,8 @@ def test_friendly_error_hints():
         "This video isn't available"
     )
     assert links.friendly_error("something else") == "something else"
+    bot = "Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies"
+    assert links.friendly_error(bot).startswith("The site wants a sign-in check")
     safari = links.friendly_error(
         "[Errno 1] Operation not permitted: '/Users/a/Library/Cookies/Cookies.binarycookies'"
     )

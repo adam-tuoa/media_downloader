@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import re
 import signal
@@ -25,6 +26,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app import links
+
+log = logging.getLogger(__name__)
 
 
 def _default_bin_dir() -> Path:
@@ -76,9 +79,49 @@ class Options:
     """Runtime options applied to every yt-dlp call; set from Settings at startup and on change."""
 
     cookies_browser: str | None = None  # chrome | firefox | edge | safari | brave | ...
+    # The browser whose cookies could not be read this session (permissions, missing profile).
+    # Calls skip cookies while it matches cookies_browser; Settings resets it when saved.
+    unreadable_browser: str | None = None
+    unreadable_reason: str = ""
 
 
 options = Options()
+_COOKIE_FAILURE = re.compile(
+    r"binarycookies|cookies? database|could not (?:find|copy|read|decrypt) [^\n]*cookie", re.I
+)
+
+
+def cookie_failure(stderr: str) -> bool:
+    """yt-dlp died reading the browser's cookies - nothing to do with the site."""
+    return bool(_COOKIE_FAILURE.search(stderr))
+
+
+def cookie_warning() -> str | None:
+    """What to tell the user when their cookie setting is being skipped."""
+    browser = options.cookies_browser
+    if not browser or options.unreadable_browser != browser:
+        return None
+    return (
+        f"Couldn't read {browser.capitalize()}'s cookies ({options.unreadable_reason}), so"
+        " downloads are running without them. Videos that need a sign-in will fail until"
+        " that's fixed - see Settings."
+    )
+
+
+def _cookies_usable() -> bool:
+    return bool(options.cookies_browser) and options.unreadable_browser != options.cookies_browser
+
+
+def _note_cookie_failure(stderr: str) -> None:
+    options.unreadable_browser = options.cookies_browser
+    options.unreadable_reason = extract_error(stderr)
+    log.warning(
+        "can't read %s cookies (%s) - continuing without them",
+        options.cookies_browser,
+        options.unreadable_reason,
+    )
+
+
 _PARTIAL_SUFFIXES = (".part", ".ytdl", ".temp", ".tmp")
 
 
@@ -182,8 +225,9 @@ def js_runtime_args() -> list[str]:
     return []
 
 
-def base_args() -> list[str]:
+def base_args(cookies: bool = True) -> list[str]:
     """Flags applied to every invocation: ignore user config, locate bundled ffmpeg and qjs.
+    ``cookies=False`` leaves the browser cookies out (retries after they proved unreadable).
 
     No ffprobe is bundled (it was a second 77 MB copy of ffmpeg's libraries). yt-dlp falls back to
     ``ffmpeg -i`` for codec checks and only *requires* ffprobe for things this app never does:
@@ -194,8 +238,8 @@ def base_args() -> list[str]:
     if ffmpeg:
         args += ["--ffmpeg-location", os.path.dirname(ffmpeg)]
     args += js_runtime_args()
-    if options.cookies_browser:
-        args += ["--cookies-from-browser", options.cookies_browser]
+    if cookies and _cookies_usable():
+        args += ["--cookies-from-browser", options.cookies_browser or ""]
     if not links.allow_any_site():
         args += ["--use-extractors", links.EXTRACTOR_ALLOWLIST]
     return args
@@ -297,9 +341,9 @@ def resolve_output(reported: Path | None, out_dir: Path) -> Path | None:
 # --- running (blocking helpers; always called through asyncio.to_thread) -------------------------
 
 
-def _popen(args: Sequence[str]) -> subprocess.Popen[bytes]:
+def _popen(args: Sequence[str], cookies: bool = True) -> subprocess.Popen[bytes]:
     return subprocess.Popen(
-        [_ytdlp(), *base_args(), *args],
+        [_ytdlp(), *base_args(cookies), *args],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -330,9 +374,9 @@ def _kill_tree(proc: subprocess.Popen[bytes]) -> None:
         pass
 
 
-def _run_sync(args: Sequence[str], timeout: float) -> tuple[int, str, str]:
+def _run_sync(args: Sequence[str], timeout: float, cookies: bool = True) -> tuple[int, str, str]:
     """Run to completion; kills yt-dlp and raises TimeoutError if it takes too long."""
-    proc = _popen(args)
+    proc = _popen(args, cookies)
     try:
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -342,13 +386,26 @@ def _run_sync(args: Sequence[str], timeout: float) -> tuple[int, str, str]:
     return proc.returncode, out.decode("utf-8", "replace"), err.decode("utf-8", "replace")
 
 
+def _run_tolerating_cookies(args: Sequence[str], timeout: float) -> tuple[int, str, str]:
+    """Run; if the browser's cookies can't be read, run again without them. A broken cookie
+    setting must not sink downloads from sites that never needed a login."""
+    rc, out, err = _run_sync(args, timeout)
+    if rc != 0 and _cookies_usable() and cookie_failure(err):
+        _note_cookie_failure(err)
+        rc, out, err = _run_sync(args, timeout, cookies=False)
+        if rc != 0:
+            err += f"\nERROR: {extract_error(err)}; also {options.unreadable_reason}"
+    return rc, out, err
+
+
 def _stream_sync(
     args: Sequence[str],
     on_line: Callable[[str], None],
     cancel: threading.Event | None = None,
+    cookies: bool = True,
 ) -> tuple[int, str]:
     """Run, handing each stdout line to ``on_line`` as it arrives; ``cancel`` kills the process."""
-    proc = _popen(args)
+    proc = _popen(args, cookies)
     assert proc.stdout is not None and proc.stderr is not None
     stderr_chunks: list[bytes] = []
 
@@ -387,7 +444,7 @@ def _stream_sync(
 
 
 async def version() -> str:
-    rc, out, err = await asyncio.to_thread(_run_sync, ["--version"], 30)
+    rc, out, err = await asyncio.to_thread(_run_sync, ["--version"], 30, False)
     if rc != 0:
         raise YtdlpError(extract_error(err))
     return out.strip().splitlines()[-1]
@@ -395,7 +452,7 @@ async def version() -> str:
 
 async def update() -> str:
     """Run yt-dlp's self-updater; returns its report text."""
-    rc, out, err = await asyncio.to_thread(_run_sync, ["-U"], 300)
+    rc, out, err = await asyncio.to_thread(_run_sync, ["-U"], 300, False)
     if rc != 0:
         raise YtdlpError(extract_error(err))
     return out.strip()
@@ -405,7 +462,7 @@ async def probe(url: str) -> dict:
     """Metadata for a single item (playlists are resolved to the video, if the URL has both)."""
     try:
         rc, out, err = await asyncio.to_thread(
-            _run_sync, ["-J", "--no-playlist", url], PROBE_TIMEOUT
+            _run_tolerating_cookies, ["-J", "--no-playlist", url], PROBE_TIMEOUT
         )
     except TimeoutError:
         raise YtdlpError("Timed out while fetching video information") from None
@@ -421,7 +478,7 @@ async def inspect(url: str) -> dict:
     """Metadata for a possible playlist; entries are listed (flat, capped), not extracted."""
     try:
         rc, out, err = await asyncio.to_thread(
-            _run_sync,
+            _run_tolerating_cookies,
             ["-J", "--flat-playlist", "--playlist-end", str(PLAYLIST_LIMIT), url],
             PROBE_TIMEOUT,
         )
@@ -485,6 +542,12 @@ async def download(
 
     try:
         rc, stderr = await asyncio.to_thread(_stream_sync, args, handle, cancel)
+        if rc != 0 and not (cancel and cancel.is_set()) and _cookies_usable():
+            if cookie_failure(stderr):
+                _note_cookie_failure(stderr)
+                rc, stderr = await asyncio.to_thread(_stream_sync, args, handle, cancel, False)
+                if rc != 0:
+                    stderr += f"\nERROR: {extract_error(stderr)}; also {options.unreadable_reason}"
     finally:
         if info_file is not None:
             info_file.unlink(missing_ok=True)

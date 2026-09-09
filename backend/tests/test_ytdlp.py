@@ -80,6 +80,7 @@ def test_parse_progress_identifies_stream():
 
 def test_base_args_apply_cookies_and_allowlist(monkeypatch):
     monkeypatch.setattr(ytdlp.options, "cookies_browser", None)
+    monkeypatch.setattr(ytdlp.options, "unreadable_browser", None)
     monkeypatch.delenv("MD_ALLOW_ANY_SITE", raising=False)
     args = ytdlp.base_args()
     assert "--use-extractors" in args and "--cookies-from-browser" not in args
@@ -88,6 +89,18 @@ def test_base_args_apply_cookies_and_allowlist(monkeypatch):
     args = ytdlp.base_args()
     assert args[args.index("--cookies-from-browser") + 1] == "firefox"
     assert "--use-extractors" not in args
+    assert "--cookies-from-browser" not in ytdlp.base_args(cookies=False)
+    monkeypatch.setattr(ytdlp.options, "unreadable_browser", "firefox")
+    assert "--cookies-from-browser" not in ytdlp.base_args()  # unreadable this session: skipped
+
+
+def test_cookie_failure_recognises_browser_cookie_problems():
+    assert ytdlp.cookie_failure(
+        "ERROR: [Errno 1] Operation not permitted: '/Users/a/Library/Cookies/Cookies.binarycookies'"
+    )
+    assert ytdlp.cookie_failure("ERROR: could not find firefox cookies database in ~/.mozilla")
+    assert ytdlp.cookie_failure("ERROR: Could not copy Chrome cookie database")
+    assert not ytdlp.cookie_failure("ERROR: [vimeo] 1: The web client only works when logged-in")
 
 
 def test_js_runtime_prefers_bundled_quickjs_over_deno(monkeypatch, tmp_path):

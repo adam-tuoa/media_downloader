@@ -25,6 +25,10 @@ if "--spawn-child" in args:
     child.wait()
 if "--version" in args:
     print("2099.01.01"); sys.exit(0)
+if "--cookies-from-browser" in args:  # like Safari on a Mac without Full Disk Access
+    print("ERROR: [Errno 1] Operation not permitted: "
+          "'/Users/x/Library/Cookies/Cookies.binarycookies'", file=sys.stderr)
+    sys.exit(1)
 if "-J" in args:
     if "bad" in args[-1]:
         print("ERROR: [youtube] bad: Video unavailable; please report this issue on github",
@@ -56,13 +60,37 @@ def fake_ytdlp(monkeypatch, tmp_path):
     script = tmp_path / "fake_ytdlp.py"
     script.write_text(FAKE_YTDLP, encoding="utf-8")
     monkeypatch.setattr(ytdlp, "_ytdlp", lambda: sys.executable)
-    monkeypatch.setattr(ytdlp, "base_args", lambda: [str(script)])
+    monkeypatch.setattr(
+        ytdlp,
+        "base_args",
+        lambda cookies=True: [
+            str(script),
+            *(["--cookies-from-browser", "safari"] if cookies and ytdlp._cookies_usable() else []),
+        ],
+    )
+    monkeypatch.setattr(ytdlp.options, "cookies_browser", None)
+    monkeypatch.setattr(ytdlp.options, "unreadable_browser", None)
     return tmp_path
 
 
 async def test_version_and_probe(fake_ytdlp):
     assert await ytdlp.version() == "2099.01.01"
     assert (await ytdlp.probe("https://ok"))["title"] == "Fake"
+
+
+async def test_unreadable_browser_cookies_are_skipped_not_fatal(fake_ytdlp, monkeypatch):
+    monkeypatch.setattr(ytdlp.options, "cookies_browser", "safari")
+    assert ytdlp.cookie_warning() is None
+    assert (await ytdlp.probe("https://ok"))["title"] == "Fake"  # retried without cookies
+    assert ytdlp.options.unreadable_browser == "safari"
+    assert "Safari's cookies" in (ytdlp.cookie_warning() or "")
+    assert "--cookies-from-browser" not in ytdlp.base_args()  # remembered: no second stumble
+    template = str(fake_ytdlp / "out" / "%(title)s.%(ext)s")
+    assert (await ytdlp.download("https://ok", [], template)).name == "Fake [id].mp4"
+    # A site that really needs the login: both reasons reach the user.
+    monkeypatch.setattr(ytdlp.options, "unreadable_browser", None)
+    with pytest.raises(ytdlp.YtdlpError, match=r"boom; also .*binarycookies"):
+        await ytdlp.download("https://ok", ["--fail"], template)
 
 
 async def test_probe_error_is_cleaned_up(fake_ytdlp):
@@ -120,14 +148,17 @@ def test_timeout_kills_the_process(fake_ytdlp):
 
 
 async def test_download_can_reuse_probe_info(fake_ytdlp):
+    # The real app may be running alongside the tests and have its own info file in the temp
+    # dir mid-download, so only files this call creates must be gone afterwards.
+    def info_files() -> set[pathlib.Path]:
+        return set(pathlib.Path(tempfile.gettempdir()).glob("md-*.info.json"))
+
+    before = await asyncio.to_thread(info_files)
     template = str(fake_ytdlp / "out" / "%(title)s.%(ext)s")
     path = await ytdlp.download("https://ok", [], template, info={"title": "T"})
     content = await asyncio.to_thread(path.read_bytes)
     assert content == b'{"title": "T"}'  # the fake copied the info file we handed it
-    leftovers = await asyncio.to_thread(
-        lambda: list(pathlib.Path(tempfile.gettempdir()).glob("md-*.info.json"))
-    )
-    assert not leftovers  # temp info file cleaned up
+    assert await asyncio.to_thread(info_files) <= before  # our temp info file cleaned up
 
 
 @pytest.mark.skipif(

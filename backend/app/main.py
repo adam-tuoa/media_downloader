@@ -205,6 +205,7 @@ async def health(request: Request) -> dict:
         "ytdlp_update": getattr(state, "ytdlp_update", {"state": "idle", "message": ""}),
         "app_update": getattr(state, "app_update", None),
         "quit_requested": bool(getattr(state, "quit_requested", False)),
+        "cookies_warning": ytdlp.cookie_warning(),
     }
 
 
@@ -578,6 +579,7 @@ async def update_settings(req: SettingsUpdate, request: Request) -> dict:
     if req.cookies_browser is not None:
         store.set_setting("cookies_browser", req.cookies_browser)
         ytdlp.options.cookies_browser = req.cookies_browser or None
+        ytdlp.options.unreadable_browser = None  # give the new (or fixed) setting a fresh go
     if req.audio_language is not None:
         store.set_setting("audio_language", req.audio_language.lower())
     for key in ("default_kind", "default_video", "default_audio"):
