@@ -262,6 +262,11 @@ To do, roughly in order of value for effort (list reviewed with Adam 2026-09-09)
 - Pre-probe preview in the form ("Check link" from Phase 0) if Dad wants to confirm before queueing
 - `watch?v=X&list=Y` links: offer "just this video / the whole playlist" instead of always taking the video
 - Channel links (`/@name`): accept as a capped playlist
+- **Facebook / Instagram** (Adam asked 2026-09-09). yt-dlp has both extractors. Facebook: public videos and reels
+  mostly work anonymously (`facebook.com/watch`, `/reel/`, `/videos/`, `fb.watch` short links); private or group
+  videos need cookies. Instagram: nearly everything needs a signed-in browser's cookies, the extractor breaks often,
+  and automated access can get the account temporarily flagged — set expectations before adding it. The work
+  itself is small: allowlist entries + link normalisation + tests. Try a real link first with `MD_ALLOW_ANY_SITE=1`.
 - "Batch finished" desktop notification
 
 ## Open questions — resolved "keep it flexible" (2026-09-06)
