@@ -1,23 +1,22 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getHealth, getSettings, reveal, saveSettings, updateYtdlp, type Settings } from '../api';
+import {
+  getHealth,
+  getSettings,
+  reveal,
+  saveSettings,
+  updateYtdlp,
+  type Kind,
+  type Settings,
+} from '../api';
+import {
+  AUDIO_CHOICES,
+  LANGUAGES,
+  VIDEO_QUALITIES,
+  audioChoice,
+  videoQuality,
+} from '../lib/options';
 import { inputClass } from '../lib/ui';
-
-const LANGUAGES = [
-  { value: 'en', label: 'English' },
-  { value: '', label: 'Original (as uploaded)' },
-  { value: 'es', label: 'Spanish' },
-  { value: 'fr', label: 'French' },
-  { value: 'de', label: 'German' },
-  { value: 'it', label: 'Italian' },
-  { value: 'pt', label: 'Portuguese' },
-  { value: 'hi', label: 'Hindi' },
-  { value: 'ja', label: 'Japanese' },
-  { value: 'ko', label: 'Korean' },
-  { value: 'zh', label: 'Chinese' },
-  { value: 'ar', label: 'Arabic' },
-  { value: 'id', label: 'Indonesian' },
-];
 
 const BROWSERS = [
   { value: 'firefox', label: 'Firefox' },
@@ -33,6 +32,9 @@ function SettingsForm({ initial }: { initial: Settings }) {
   const [concurrency, setConcurrency] = useState(initial.concurrency);
   const [cookies, setCookies] = useState(initial.cookies_browser ?? '');
   const [language, setLanguage] = useState(initial.audio_language ?? 'en');
+  const [kind, setKind] = useState<Kind>(initial.default_kind === 'audio' ? 'audio' : 'video');
+  const [video, setVideo] = useState(videoQuality(initial.default_video));
+  const [audio, setAudio] = useState(audioChoice(initial.default_audio ?? '').value);
 
   const save = useMutation({
     mutationFn: saveSettings,
@@ -44,7 +46,10 @@ function SettingsForm({ initial }: { initial: Settings }) {
     folder !== initial.output_dir ||
     concurrency !== initial.concurrency ||
     cookies !== (initial.cookies_browser ?? '') ||
-    language !== (initial.audio_language ?? 'en');
+    language !== (initial.audio_language ?? 'en') ||
+    kind !== (initial.default_kind === 'audio' ? 'audio' : 'video') ||
+    video !== videoQuality(initial.default_video) ||
+    audio !== audioChoice(initial.default_audio ?? '').value;
 
   return (
     <>
@@ -70,6 +75,61 @@ function SettingsForm({ initial }: { initial: Settings }) {
         </div>
       </div>
 
+      <fieldset className="space-y-3 rounded-md border border-slate-200 p-3">
+        <legend className="px-1 text-sm font-medium text-slate-700">
+          New downloads start with
+        </legend>
+        <div className="space-y-1">
+          <label htmlFor="default-kind" className="block text-xs text-slate-600">
+            Video or audio
+          </label>
+          <select
+            id="default-kind"
+            value={kind}
+            onChange={(e) => setKind(e.target.value as Kind)}
+            className={inputClass}
+          >
+            <option value="video">Video</option>
+            <option value="audio">Audio</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="default-video" className="block text-xs text-slate-600">
+            Video quality
+          </label>
+          <select
+            id="default-video"
+            value={video}
+            onChange={(e) => setVideo(e.target.value)}
+            className={inputClass}
+          >
+            {VIDEO_QUALITIES.map((q) => (
+              <option key={q.value} value={q.value}>
+                {q.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="default-audio" className="block text-xs text-slate-600">
+            Audio format
+          </label>
+          <select
+            id="default-audio"
+            value={audio}
+            onChange={(e) => setAudio(e.target.value)}
+            className={inputClass}
+          >
+            {AUDIO_CHOICES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="text-xs text-slate-500">You can still change these for any download.</p>
+      </fieldset>
+
       <div className="space-y-2">
         <label htmlFor="concurrency" className="block text-sm font-medium text-slate-700">
           Downloads at the same time
@@ -90,7 +150,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
 
       <div className="space-y-2">
         <label htmlFor="language" className="block text-sm font-medium text-slate-700">
-          Audio language
+          Language
         </label>
         <select
           id="language"
@@ -105,8 +165,8 @@ function SettingsForm({ initial }: { initial: Settings }) {
           ))}
         </select>
         <p className="text-xs text-slate-500">
-          Only matters when a video offers several audio tracks (YouTube’s dubbing). You get this
-          language if it exists, otherwise the original.
+          Used for YouTube’s dubbed audio tracks and for subtitles. You get this language when the
+          video has it, otherwise the original.
         </p>
       </div>
 
@@ -129,8 +189,9 @@ function SettingsForm({ initial }: { initial: Settings }) {
         </select>
         <p className="text-xs text-slate-500">
           Only needed for videos that require being signed in — Vimeo, private or members-only
-          videos. Pick a browser you’re signed in with. Firefox works best; Chrome on Windows often
-          won’t share its cookies.
+          videos. Pick a browser you’re signed in with. Firefox works best. Safari needs Media
+          Downloader switched on under System Settings → Privacy &amp; Security → Full Disk Access.
+          Chrome on Windows often won’t share its cookies.
         </p>
       </div>
 
@@ -144,6 +205,9 @@ function SettingsForm({ initial }: { initial: Settings }) {
               concurrency,
               cookies_browser: cookies,
               audio_language: language,
+              default_kind: kind,
+              default_video: video,
+              default_audio: audio,
             })
           }
           className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
@@ -202,12 +266,19 @@ export default function SettingsPanel() {
   const settings = useQuery({ queryKey: ['settings'], queryFn: getSettings });
 
   return (
-    <section className="space-y-4 rounded-xl bg-white p-5 shadow-md sm:p-6">
-      <h2 className="text-lg font-semibold">Settings</h2>
+    <div className="space-y-4">
       {settings.data ? (
         // Keyed on the saved values so the form resets to them after a save or refetch.
         <SettingsForm
-          key={`${settings.data.output_dir}|${settings.data.concurrency}|${settings.data.cookies_browser ?? ''}|${settings.data.audio_language}`}
+          key={[
+            settings.data.output_dir,
+            settings.data.concurrency,
+            settings.data.cookies_browser ?? '',
+            settings.data.audio_language,
+            settings.data.default_kind,
+            settings.data.default_video,
+            settings.data.default_audio,
+          ].join('|')}
           initial={settings.data}
         />
       ) : settings.error ? (
@@ -218,6 +289,6 @@ export default function SettingsPanel() {
         <p className="text-sm text-slate-500">Loading…</p>
       )}
       <EngineUpdate />
-    </section>
+    </div>
   );
 }

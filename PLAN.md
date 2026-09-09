@@ -1,7 +1,8 @@
 # Plan — Media Downloader (for Dad)
 
 Status: **v0.5.1 (2026-09-09): the Library; bundle slimmed (QuickJS-ng for Deno, no ffprobe), verified on the Mac and
-the Windows PC.** Dad reported v0.4.1 "works" on Windows. Phase 5 to-do list
+the Windows PC. After it, on main: the Phase 5 small items (Safari-cookies hint, one language for dubs and subtitles,
+WAV/AIFF, Settings + Help dialogs, default choices in Settings).** Dad reported v0.4.1 "works" on Windows. Phase 5 to-do list
 reviewed and reordered 2026-09-09 — small fixes first (Safari-cookies hint, one language setting, WAV/AIFF,
 Settings modal, Help), then folder default, Library polish, playback, an app window.
 
@@ -163,23 +164,24 @@ Done:
 To do, roughly in order of value for effort (list reviewed with Adam 2026-09-09):
 
 **Small — an afternoon or less each**
-- [ ] **Safari cookies on macOS need Full Disk Access.** Adam's Vimeo attempt with "Use cookies from: Safari"
+- [x] **Safari cookies on macOS need Full Disk Access — done 2026-09-09.** Adam's Vimeo attempt with "Use cookies from: Safari"
       failed with `[Errno 1] Operation not permitted: ~/Library/Cookies/Cookies.binarycookies` — macOS privacy
       (TCC) blocking the app — and the hint wrongly said "set Use cookies from in Settings". Recognise that
       message and say so plainly: "macOS is blocking Safari's cookies. System Settings → Privacy & Security →
       Full Disk Access → add Media Downloader (or Terminal when running from source), then try again. Firefox
       and Chrome don't need this." Also in Help and the README.
-- [ ] **One language for dubbed audio and subtitles.** Settings gets a single "Language" (used for YouTube's
+- [x] **One language for dubbed audio and subtitles — done 2026-09-09.** Settings gets a single "Language" (used for YouTube's
       dubbed audio *and* subtitles); the form keeps only the subtitles checkbox, whose text reads "Include
       <Language> subtitles when the video has them" from that setting. "Original (as uploaded)" → subtitles in the video's own language (`info["language"]`, else
       English). `subtitle_args()` takes the language; the worker passes `settings.audio_language` (key can stay).
-- [ ] **WAV and AIFF audio.** WAV is a plain `--audio-format wav`; AIFF isn't in `-x`'s list (checked on yt-dlp
+- [x] **WAV and AIFF audio — done 2026-09-09.** WAV is a plain `--audio-format wav`; AIFF isn't in `-x`'s list (checked on yt-dlp
       2026.08.19) but is in `--remux-video`/`--recode-video`, so `-f bestaudio --recode-video aiff`. Label
       honestly: uncompressed, for editing, ~10× the size, no better than the original. yt-dlp's thumbnail
-      embedder refuses both containers, so `tag_args` must skip `--embed-thumbnail` for them; check what
-      `--embed-metadata` writes (WAV: basic INFO tags; AIFF: ID3).
-- [ ] **Settings as a modal** (`<dialog>`) opened from the header; the same mechanism serves Help.
-- [ ] **Help button** → in-app guide: pasting links, Audio vs Video, where files go, signing in (cookies, the
+      embedder refuses both containers, so `tag_args` skips `--embed-thumbnail` for them. Verified: WAV gets
+      title/artist/date (INFO chunk), AIFF gets full ID3 tags including chapters (`Metadata:-write_id3v2 1`).
+- [x] **Settings as a modal — done 2026-09-09** (an overlay with `role="dialog"`, not `<dialog>`: jsdom can't
+      drive `showModal()`); the same `Modal` serves Help.
+- [x] **Help button — done 2026-09-09** → in-app guide: pasting links, Audio vs Video, where files go, signing in (cookies, the
       macOS Full Disk Access step), updating the engine, when things go wrong. Mostly the README and
       release-notes text reworded for Dad.
 
@@ -210,6 +212,10 @@ To do, roughly in order of value for effort (list reviewed with Adam 2026-09-09)
       After 1+2 (2026-09-09): `bin/` is 202 MB on macOS, was 371 — the app should land near 260 MB (release
       build not yet measured). Floors: 1–3 ≈ 155 MB; all five ≈ 80 MB. A 40 MB installer that fetches the tools on first
       run is also possible (the fetch script already exists) but cuts only the download, not disk.
+
+- [x] **Default choices in Settings (Adam, 2026-09-09; done the same day):** what new downloads start with —
+      Video or Audio, video quality, audio format — pre-selects the form. Stored as the UI's own choice keys
+      (`default_kind`, `default_video`, `default_audio`), validated but not interpreted by the backend.
 
 **Medium — a day or two each**
 - [ ] **First-run setup instead of a silent default folder** (Adam, 2026-09-09: don't assume Music or any other

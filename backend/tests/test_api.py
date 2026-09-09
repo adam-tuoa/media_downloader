@@ -315,3 +315,21 @@ def test_library_lists_redownloads_and_forgets(client, fake, tmp_path):
 
     assert client.post("/api/jobs/clear-finished").json()["archived"] == 1  # the redownload job
     assert client.get("/api/jobs").json() == []
+
+
+def test_form_defaults_are_remembered(client):
+    fresh = client.get("/api/settings").json()
+    assert (fresh["default_kind"], fresh["default_video"], fresh["default_audio"]) == (
+        "video",
+        "best",
+        "mp3-320",
+    )
+    r = client.put(
+        "/api/settings",
+        json={"default_kind": "audio", "default_video": "720", "default_audio": "m4a"},
+    )
+    assert r.status_code == 200 and r.json()["default_audio"] == "m4a"
+    again = client.get("/api/settings").json()
+    assert again["default_kind"] == "audio" and again["default_video"] == "720"
+    assert client.put("/api/settings", json={"default_audio": "flac"}).status_code == 422
+    assert client.put("/api/settings", json={"default_kind": "both"}).status_code == 422

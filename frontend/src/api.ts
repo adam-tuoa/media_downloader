@@ -46,6 +46,10 @@ export interface Settings {
   cookies_browser: string | null;
   /** Preferred audio track when a video has several (YouTube dubbing); "" = original. */
   audio_language: string;
+  /** What the new-download form starts with (UI choice keys). */
+  default_kind: Kind;
+  default_video: string;
+  default_audio: string;
 }
 
 export interface NewLink {
@@ -57,7 +61,7 @@ export interface NewLink {
   collection_index?: number | null;
 }
 
-export type AudioFormat = 'mp3' | 'm4a' | 'best';
+export type AudioFormat = 'mp3' | 'm4a' | 'best' | 'wav' | 'aiff';
 
 export type JobCreate =
   | { links: NewLink[]; kind: 'video'; height: number | null; subtitles: boolean }

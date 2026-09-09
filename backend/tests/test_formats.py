@@ -150,8 +150,20 @@ def test_tag_and_subtitle_args():
     assert formats.tag_args({"title": "Artist - Song"}, "video") == base
     parsed = formats.tag_args({"title": "Artist - Song (Official)"}, "audio")
     assert parsed[-2:] == ["--parse-metadata", "title:%(artist)s - %(title)s"]
+    assert formats.tag_args({"title": "x"}, "audio", cover=False) == ["--embed-metadata"]
     subs = formats.subtitle_args()
-    assert subs[0] == "--write-subs" and "--embed-subs" in subs and "en" in subs[2]
+    assert subs[0] == "--write-subs" and "--embed-subs" in subs and subs[2] == "en.*,en"
+    assert formats.subtitle_args("es")[2] == "es.*,es"
+    assert formats.subtitle_args("", "de")[2] == "de.*,de"  # no preference: the video's own
+    assert formats.subtitle_args(None, None)[2] == "en.*,en"
+
+
+def test_uncompressed_audio_args():
+    wav = formats.audio_download_args("wav")
+    assert wav[-3:] == ["-x", "--audio-format", "wav"]
+    aiff = formats.audio_download_args("aiff", preferred_id="251")
+    assert aiff[1] == "251/bestaudio/best" and "--recode-video" in aiff and "-x" not in aiff
+    assert aiff[aiff.index("--postprocessor-args") + 1] == "Metadata:-write_id3v2 1"
 
 
 def test_audio_language_preference(multilang_info):

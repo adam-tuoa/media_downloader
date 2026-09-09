@@ -158,6 +158,12 @@ def dedupe(links: list[Link]) -> list[Link]:
 
 # Hints for yt-dlp messages that a person can act on. The original message is kept after the hint.
 _HINTS = (
+    (
+        "cookies.binarycookies",  # macOS privacy (TCC) blocking Safari's cookie file
+        "macOS is blocking Safari's cookies. In System Settings → Privacy & Security → Full Disk"
+        " Access, switch on Media Downloader (or Terminal, when running from source), then try"
+        " again. Firefox and Chrome don't need this.",
+    ),
     ("cookies", "Needs a signed-in browser - set “Use cookies from” in Settings."),
     (
         "sign in to confirm",

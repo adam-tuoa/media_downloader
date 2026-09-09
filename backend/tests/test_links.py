@@ -99,3 +99,7 @@ def test_friendly_error_hints():
         "This video isn't available"
     )
     assert links.friendly_error("something else") == "something else"
+    safari = links.friendly_error(
+        "[Errno 1] Operation not permitted: '/Users/a/Library/Cookies/Cookies.binarycookies'"
+    )
+    assert safari.startswith("macOS is blocking Safari") and "Full Disk Access" in safari

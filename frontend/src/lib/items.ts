@@ -39,6 +39,8 @@ export function describeJob(job: Job): string {
     const format = job.options.audio_format ?? 'mp3';
     if (format === 'm4a') return 'Audio · M4A (original quality)';
     if (format === 'best') return 'Audio · best original';
+    if (format === 'wav') return 'Audio · WAV (uncompressed)';
+    if (format === 'aiff') return 'Audio · AIFF (uncompressed)';
     return `Audio · MP3 ${job.options.audio_bitrate ?? 320} kbps`;
   }
   const quality = job.options.height ? `up to ${job.options.height}p` : 'best available';

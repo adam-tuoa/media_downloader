@@ -9,11 +9,12 @@ This is for personal use. Please respect the terms of the sites you download fro
 rights of the people who made the videos and music.
 
 **Status:** v0.5.1 — a desktop app for Windows, macOS and Linux. Paste links (videos,
-playlists, albums), pick the entries you want, choose Video (quality, optional subtitles) or
-Audio (MP3 / M4A / best original), watch per-item progress; files land in a folder of your choice
-with cover art and tags, albums and playlists in their own numbered folders. A **Library** keeps
-the record of everything downloaded — with *Download again* for files that have since moved.
-Sites: YouTube, Vimeo, Bandcamp.
+playlists, albums), pick the entries you want, choose Video (quality, optional subtitles in your
+language) or Audio (MP3 / M4A / best original / WAV / AIFF), watch per-item progress; files land in
+a folder of your choice with cover art and tags, albums and playlists in their own numbered folders.
+A **Library** keeps the record of everything downloaded — with *Download again* for files that have
+since moved. Settings (folder, language, what new downloads start with, browser cookies) and a
+short in-app Help open as dialogs. Sites: YouTube, Vimeo, Bandcamp.
 
 ## Install (the desktop app)
 

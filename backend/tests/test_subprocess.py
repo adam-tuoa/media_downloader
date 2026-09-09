@@ -83,10 +83,14 @@ async def test_download_streams_progress_on_the_loop_thread(fake_ytdlp):
     await asyncio.sleep(0)  # let any queued callbacks run
 
     assert path.name == "Fake [id].mp4" and path.read_bytes() == b"data"
-    assert [(e.stage, e.status) for e in events] == [
+    # stdout and stderr are read by separate threads, so the postprocess line (stderr) has no
+    # fixed order relative to the download lines; the UI doesn't need one either.
+    assert [(e.stage, e.status) for e in events if e.stage == "download"] == [
         ("download", "downloading"),
         ("download", "finished"),
-        ("postprocess", "started"),
+    ]
+    assert [(e.stage, e.postprocessor) for e in events if e.stage == "postprocess"] == [
+        ("postprocess", "Merger")
     ]
     assert events[0].fraction == 0.5 and events[0].eta == 1
     assert threads == {threading.get_ident()}, "callbacks must run on the event-loop thread"

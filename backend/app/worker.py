@@ -71,7 +71,7 @@ def current_settings(store: Store) -> Settings:
 
 def build_download_args(job: Job, info: dict, language: str | None = None) -> list[str]:
     """yt-dlp arguments for one item. ``language`` picks among dubbed audio tracks when a video
-    has several; "" or None keeps the original."""
+    has several, and the subtitle language; "" or None keeps the original."""
     language = language or None
     if job.kind == "audio":
         audio_format = job.options.get("audio_format", "mp3")
@@ -83,14 +83,16 @@ def build_download_args(job: Job, info: dict, language: str | None = None) -> li
             int(job.options.get("audio_bitrate", 320)),
             preferred_id=track.format_id if track else None,
         )
-        return args + formats.tag_args(info, "audio")
+        return args + formats.tag_args(
+            info, "audio", cover=audio_format not in formats.UNCOMPRESSED
+        )
     options = formats.video_options(info, language=language)
     if not options:
         raise ytdlp.YtdlpError("No video streams found for this link - try Audio instead")
     args = formats.video_download_args(formats.pick_height(options, job.options.get("height")))
     args += formats.tag_args(info, "video")
     if job.options.get("subtitles"):
-        args += formats.subtitle_args()
+        args += formats.subtitle_args(language, info.get("language"))
     return args
 
 

@@ -42,7 +42,42 @@ export const AUDIO_CHOICES: AudioChoice[] = [
     format: 'best',
     note: 'Exactly what the site has: Opus from YouTube, MP3 from Bandcamp. Opus needs VLC or a modern player.',
   },
+  {
+    value: 'wav',
+    label: 'WAV — uncompressed, for editing',
+    format: 'wav',
+    note: 'Huge files (about 10× an MP3) and no better than the original — only worth it if you’ll edit the audio. WAV can’t hold cover art.',
+  },
+  {
+    value: 'aiff',
+    label: 'AIFF — uncompressed, Apple flavour',
+    format: 'aiff',
+    note: 'The same as WAV in Apple’s container, for Logic, GarageBand and the like. Huge files, no cover art.',
+  },
 ];
+
+/** The one language setting: used for YouTube’s dubbed audio tracks and for subtitles. */
+export const LANGUAGES = [
+  { value: 'en', label: 'English' },
+  { value: '', label: 'Original (as uploaded)' },
+  { value: 'es', label: 'Spanish' },
+  { value: 'fr', label: 'French' },
+  { value: 'de', label: 'German' },
+  { value: 'it', label: 'Italian' },
+  { value: 'pt', label: 'Portuguese' },
+  { value: 'hi', label: 'Hindi' },
+  { value: 'ja', label: 'Japanese' },
+  { value: 'ko', label: 'Korean' },
+  { value: 'zh', label: 'Chinese' },
+  { value: 'ar', label: 'Arabic' },
+  { value: 'id', label: 'Indonesian' },
+];
+
+/** Plain name for a language code; null means "the original, whatever it is". */
+export function languageName(code: string | null | undefined): string | null {
+  if (!code) return null;
+  return LANGUAGES.find((l) => l.value === code)?.label ?? code;
+}
 
 export const DEFAULT_AUDIO_CHOICE = 'mp3-320';
 
@@ -62,4 +97,11 @@ export const VIDEO_QUALITIES: { value: string; label: string; height: number | n
 
 export function videoHeight(value: string): number | null {
   return VIDEO_QUALITIES.find((q) => q.value === value)?.height ?? null;
+}
+
+export const DEFAULT_VIDEO_QUALITY = 'best';
+
+/** A saved video-quality value, or the default when it isn't one we know. */
+export function videoQuality(value: string | null | undefined): string {
+  return VIDEO_QUALITIES.some((q) => q.value === value) ? String(value) : DEFAULT_VIDEO_QUALITY;
 }

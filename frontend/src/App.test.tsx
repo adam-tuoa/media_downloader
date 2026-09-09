@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 
@@ -20,10 +20,25 @@ const health = (desktop: boolean, extra: object = {}) => ({
   ...extra,
 });
 
-function stubApi(healthBody: object) {
+const settings = {
+  output_dir: '/tmp/x',
+  concurrency: 2,
+  cookies_browser: null,
+  audio_language: 'en',
+  default_kind: 'video',
+  default_video: 'best',
+  default_audio: 'mp3-320',
+};
+
+function stubApi(healthBody: object, settingsBody: object = settings) {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string) => json(String(url).includes('/api/health') ? healthBody : []))
+    vi.fn(async (url: string) => {
+      const path = String(url);
+      if (path.includes('/api/health')) return json(healthBody);
+      if (path.includes('/api/settings')) return json(settingsBody);
+      return json([]);
+    })
   );
 }
 
@@ -46,6 +61,30 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Download' })).toBeDisabled();
     expect(await screen.findByText(/Nothing yet/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Quit' })).not.toBeInTheDocument();
+    // The subtitle checkbox names the Settings language.
+    expect(await screen.findByLabelText(/Include English subtitles/)).toBeInTheDocument();
+  });
+
+  it('starts the form with the saved defaults', async () => {
+    stubApi(health(false), { ...settings, default_kind: 'audio', default_audio: 'm4a' });
+    renderApp();
+    expect(await screen.findByLabelText('Audio format')).toHaveValue('m4a');
+    expect(screen.queryByLabelText('Quality')).not.toBeInTheDocument();
+  });
+
+  it('opens Settings and Help as dialogs', async () => {
+    stubApi(health(false));
+    renderApp();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument();
+    expect(await screen.findByLabelText('Language')).toHaveValue('en');
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Help' }));
+    expect(screen.getByRole('dialog', { name: 'Help' })).toBeInTheDocument();
+    expect(screen.getByText(/Full Disk Access/)).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('shows Quit and the update banner in desktop mode', async () => {

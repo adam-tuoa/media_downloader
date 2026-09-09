@@ -247,6 +247,18 @@ def test_build_args_include_tags_and_subtitles(bbb_info):
     audio = Job("j", 0, "audio", {"audio_format": "m4a"})
     args = worker.build_download_args(audio, bbb_info)
     assert "bestaudio[ext=m4a]" in args[1] and "--embed-metadata" in args
+    wav = worker.build_download_args(Job("j", 0, "audio", {"audio_format": "wav"}), bbb_info)
+    assert "--embed-metadata" in wav and "--embed-thumbnail" not in wav  # no cover art in WAV
+
+
+def test_subtitles_follow_the_language_setting(bbb_info):
+    from app.store import Job
+
+    video = Job("j", 0, "video", {"height": 720, "subtitles": True})
+    args = worker.build_download_args(video, bbb_info, "es")
+    assert args[args.index("--sub-langs") + 1] == "es.*,es"
+    original = worker.build_download_args(video, {**bbb_info, "language": "de"}, "")
+    assert original[original.index("--sub-langs") + 1] == "de.*,de"
 
 
 def test_build_args_follow_the_audio_language(multilang_info):

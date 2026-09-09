@@ -207,7 +207,8 @@ def video_download_args(option: VideoOption) -> list[str]:
     return ["-f", spec, "--merge-output-format", "mp4"]
 
 
-AUDIO_FORMATS = ("mp3", "m4a", "best")
+AUDIO_FORMATS = ("mp3", "m4a", "best", "wav", "aiff")
+UNCOMPRESSED = ("wav", "aiff")  # no cover art possible; tags are basic
 
 
 def audio_download_args(
@@ -219,6 +220,9 @@ def audio_download_args(
     m4a  - YouTube's AAC stream copied as-is when available (no re-encode), else transcoded
     best - the site's best stream in its native codec, untouched
            (Opus from YouTube, MP3 from Bandcamp)
+    wav  - uncompressed PCM, for editing; ~10x the size and no better than the source
+    aiff - the same in Apple's container. Not in yt-dlp's -x list, so it goes through
+           --recode-video (whose list has it); ffmpeg's AIFF muxer needs -write_id3v2 for tags
     """
     # A specific track chosen by best_audio() (language-aware) comes first; the generic
     # selectors remain as fallbacks in case the id has gone stale.
@@ -228,6 +232,17 @@ def audio_download_args(
         return ["-f", selector, "-x", "--audio-format", "m4a"]
     if audio_format == "best":
         return ["-f", head + "bestaudio/best", "-x", "--audio-format", "best"]
+    if audio_format == "wav":
+        return ["-f", head + "bestaudio/best", "-x", "--audio-format", "wav"]
+    if audio_format == "aiff":
+        return [
+            "-f",
+            head + "bestaudio/best",
+            "--recode-video",
+            "aiff",
+            "--postprocessor-args",
+            "Metadata:-write_id3v2 1",
+        ]
     return [
         "-f",
         head + "bestaudio/best",
@@ -239,18 +254,25 @@ def audio_download_args(
     ]
 
 
-def tag_args(info: Info, kind: str) -> list[str]:
+def tag_args(info: Info, kind: str, cover: bool = True) -> list[str]:
     """Embed title/artist/album/date tags and cover art. For audio from sites that give no artist
-    (YouTube outside its music catalogue), split an "Artist - Title" name when there is one."""
-    args = ["--embed-metadata", "--embed-thumbnail", "--convert-thumbnails", "jpg"]
+    (YouTube outside its music catalogue), split an "Artist - Title" name when there is one.
+    ``cover=False`` for containers yt-dlp can't embed a picture in (WAV/AIFF) - it would fail."""
+    args = ["--embed-metadata"]
+    if cover:
+        args += ["--embed-thumbnail", "--convert-thumbnails", "jpg"]
     if kind == "audio" and not info.get("artist") and " - " in str(info.get("title") or ""):
         args += ["--parse-metadata", "title:%(artist)s - %(title)s"]
     return args
 
 
-def subtitle_args(languages: str = "en.*,en") -> list[str]:
-    """Embed real (not auto-generated) subtitles when the video has them; silent when it doesn't."""
-    return ["--write-subs", "--sub-langs", languages, "--embed-subs"]
+def subtitle_args(language: str | None = "en", original: str | None = None) -> list[str]:
+    """Embed real (not auto-generated) subtitles in ``language`` (the Settings language, also used
+    for dubbed audio) when the video has them; silent when it doesn't. No language means the
+    video's own (``original``, from the probe), English when even that is unknown. Regional
+    variants count: "en" also takes en-US / en-GB."""
+    code = language or original or "en"
+    return ["--write-subs", "--sub-langs", f"{code}.*,{code}", "--embed-subs"]
 
 
 def summary(info: Info) -> dict[str, Any]:

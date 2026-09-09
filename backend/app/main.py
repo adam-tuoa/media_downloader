@@ -123,7 +123,7 @@ class JobCreate(BaseModel):
     kind: Literal["video", "audio"] = "video"
     height: int | None = Field(default=None, ge=144, description="video: largest height allowed")
     subtitles: bool = False
-    audio_format: Literal["mp3", "m4a", "best"] = "mp3"
+    audio_format: Literal["mp3", "m4a", "best", "wav", "aiff"] = "mp3"
     audio_bitrate: Literal[128, 192, 320] = 320
 
 
@@ -140,6 +140,12 @@ class SettingsUpdate(BaseModel):
     cookies_browser: Browser | Literal[""] | None = None  # "" clears it
     audio_language: str | None = Field(
         default=None, pattern=r"^([A-Za-z]{2,3}(-[A-Za-z]{2,4})?)?$", description='"" = original'
+    )
+    # What the form starts with. The values are the UI's own choice keys; stored, not interpreted.
+    default_kind: Literal["video", "audio"] | None = None
+    default_video: str | None = Field(default=None, pattern=r"^(best|\d{3,4})$")
+    default_audio: str | None = Field(
+        default=None, pattern=r"^(mp3-(128|192|320)|m4a|best|wav|aiff)$"
     )
 
 
@@ -458,6 +464,9 @@ def _settings_dict(store: Store) -> dict:
         "concurrency": s.concurrency,
         "cookies_browser": store.get_setting("cookies_browser") or None,
         "audio_language": s.audio_language,
+        "default_kind": store.get_setting("default_kind") or "video",
+        "default_video": store.get_setting("default_video") or "best",
+        "default_audio": store.get_setting("default_audio") or "mp3-320",
     }
 
 
@@ -494,6 +503,10 @@ async def update_settings(req: SettingsUpdate, request: Request) -> dict:
         ytdlp.options.cookies_browser = req.cookies_browser or None
     if req.audio_language is not None:
         store.set_setting("audio_language", req.audio_language.lower())
+    for key in ("default_kind", "default_video", "default_audio"):
+        value = getattr(req, key)
+        if value is not None:
+            store.set_setting(key, value)
     return _settings_dict(store)
 
 

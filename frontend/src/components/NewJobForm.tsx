@@ -1,32 +1,62 @@
 import { useState, type FormEvent } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createJob,
+  getSettings,
   inspectLinks,
   type InspectResult,
   type JobCreate,
   type Kind,
   type NewLink,
+  type Settings,
 } from '../api';
 import { allEntryUrls, collectLinks, needsReview, parseLinks } from '../lib/links';
 import {
   AUDIO_CHOICES,
-  DEFAULT_AUDIO_CHOICE,
   VIDEO_QUALITIES,
   audioChoice,
+  languageName,
   videoHeight,
+  videoQuality,
 } from '../lib/options';
 import { inputClass, segmentClass } from '../lib/ui';
 import ReviewPanel from './ReviewPanel';
 
+interface Defaults {
+  kind: Kind;
+  quality: string;
+  audio: string;
+  /** Name of the Settings language, for the subtitle checkbox; null = the video's own. */
+  subtitleLanguage: string | null;
+}
+
+/** What the form starts with, from Settings (sensible values before they load). */
+function formDefaults(settings: Settings | undefined): Defaults {
+  return {
+    kind: settings?.default_kind === 'audio' ? 'audio' : 'video',
+    quality: videoQuality(settings?.default_video),
+    audio: audioChoice(settings?.default_audio ?? '').value,
+    subtitleLanguage: languageName(settings?.audio_language ?? 'en'),
+  };
+}
+
 export default function NewJobForm() {
+  const settings = useQuery({ queryKey: ['settings'], queryFn: getSettings });
+  const defaults = formDefaults(settings.data);
+  // Remount when the saved defaults change (loaded, or saved in Settings) so the selects follow.
+  const key = `${defaults.kind}|${defaults.quality}|${defaults.audio}`;
+  return <JobForm key={key} defaults={defaults} />;
+}
+
+function JobForm({ defaults }: { defaults: Defaults }) {
   const queryClient = useQueryClient();
   const [text, setText] = useState('');
-  const [kind, setKind] = useState<Kind>('video');
-  const [quality, setQuality] = useState('best');
+  const [kind, setKind] = useState<Kind>(defaults.kind);
+  const [quality, setQuality] = useState(defaults.quality);
   const [subtitles, setSubtitles] = useState(false);
-  const [audio, setAudio] = useState(DEFAULT_AUDIO_CHOICE);
+  const [audio, setAudio] = useState(defaults.audio);
   const [review, setReview] = useState<InspectResult | null>(null);
+  const { subtitleLanguage } = defaults;
 
   const create = useMutation({
     mutationFn: createJob,
@@ -115,7 +145,7 @@ export default function NewJobForm() {
           className={segmentClass(kind === 'audio')}
           onClick={() => setKind('audio')}
         >
-          Audio (MP3)
+          Audio
         </button>
       </div>
 
@@ -146,7 +176,9 @@ export default function NewJobForm() {
               onChange={(e) => setSubtitles(e.target.checked)}
               className="h-4 w-4"
             />
-            Include English subtitles when the video has them
+            {subtitleLanguage
+              ? `Include ${subtitleLanguage} subtitles when the video has them`
+              : 'Include subtitles in the video’s own language when it has them'}
           </label>
         </div>
       ) : (
