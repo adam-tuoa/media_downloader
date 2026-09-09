@@ -36,7 +36,7 @@ export default function App() {
 
       <StatusBar />
       {panel === 'settings' && (
-        <Modal title="Settings" onClose={closePanel}>
+        <Modal title="Settings" onClose={closePanel} wide>
           <SettingsPanel />
         </Modal>
       )}

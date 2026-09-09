@@ -4,10 +4,13 @@ import { useEffect, type ReactNode } from 'react';
 export default function Modal({
   title,
   onClose,
+  wide = false,
   children,
 }: {
   title: string;
   onClose: () => void;
+  /** A wider box, for two-column forms. */
+  wide?: boolean;
   children: ReactNode;
 }) {
   useEffect(() => {
@@ -27,7 +30,7 @@ export default function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="mx-auto w-full max-w-2xl rounded-xl bg-white shadow-xl"
+        className={`mx-auto w-full ${wide ? 'max-w-3xl' : 'max-w-2xl'} rounded-xl bg-white shadow-xl`}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3 sm:px-6">

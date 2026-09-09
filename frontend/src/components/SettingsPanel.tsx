@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getHealth,
@@ -16,7 +16,7 @@ import {
   audioChoice,
   videoQuality,
 } from '../lib/options';
-import { inputClass } from '../lib/ui';
+import { compactInputClass as inputClass } from '../lib/ui';
 
 const BROWSERS = [
   { value: 'firefox', label: 'Firefox' },
@@ -25,6 +25,54 @@ const BROWSERS = [
   { value: 'safari', label: 'Safari' },
   { value: 'brave', label: 'Brave' },
 ];
+
+const noteClass = 'text-xs text-slate-500';
+const buttonClass =
+  'rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50';
+
+function Field({
+  id,
+  label,
+  sub = false,
+  note,
+  className = '',
+  children,
+}: {
+  id: string;
+  label: string;
+  /** A smaller label, for choices grouped under a heading. */
+  sub?: boolean;
+  note?: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={`space-y-1 ${className}`}>
+      <label
+        htmlFor={id}
+        className={
+          sub ? 'block text-xs text-slate-600' : 'block text-sm font-medium text-slate-700'
+        }
+      >
+        {label}
+      </label>
+      {children}
+      {note && <p className={noteClass}>{note}</p>}
+    </div>
+  );
+}
+
+function Options({ items }: { items: { value: string | number; label: string }[] }) {
+  return (
+    <>
+      {items.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </>
+  );
+}
 
 function SettingsForm({ initial }: { initial: Settings }) {
   const queryClient = useQueryClient();
@@ -52,11 +100,8 @@ function SettingsForm({ initial }: { initial: Settings }) {
     audio !== audioChoice(initial.default_audio ?? '').value;
 
   return (
-    <>
-      <div className="space-y-2">
-        <label htmlFor="folder" className="block text-sm font-medium text-slate-700">
-          Save downloads to
-        </label>
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Field id="folder" label="Save downloads to" className="sm:col-span-2">
         <div className="flex gap-2">
           <input
             id="folder"
@@ -65,115 +110,72 @@ function SettingsForm({ initial }: { initial: Settings }) {
             className={inputClass}
             spellCheck={false}
           />
-          <button
-            type="button"
-            onClick={() => open.mutate()}
-            className="shrink-0 rounded-md border border-slate-300 px-4 text-sm font-medium hover:bg-slate-50"
-          >
+          <button type="button" onClick={() => open.mutate()} className={`shrink-0 ${buttonClass}`}>
             Open folder
           </button>
         </div>
-      </div>
+      </Field>
 
-      <fieldset className="space-y-3 rounded-md border border-slate-200 p-3">
+      <fieldset className="space-y-2 rounded-md border border-slate-200 p-3 sm:col-span-2">
         <legend className="px-1 text-sm font-medium text-slate-700">
           New downloads start with
         </legend>
-        <div className="space-y-1">
-          <label htmlFor="default-kind" className="block text-xs text-slate-600">
-            Video or audio
-          </label>
-          <select
-            id="default-kind"
-            value={kind}
-            onChange={(e) => setKind(e.target.value as Kind)}
-            className={inputClass}
-          >
-            <option value="video">Video</option>
-            <option value="audio">Audio</option>
-          </select>
+        <div className="grid gap-3 sm:grid-cols-4">
+          <Field id="default-kind" label="Video or audio" sub>
+            <select
+              id="default-kind"
+              value={kind}
+              onChange={(e) => setKind(e.target.value as Kind)}
+              className={inputClass}
+            >
+              <option value="video">Video</option>
+              <option value="audio">Audio</option>
+            </select>
+          </Field>
+          <Field id="default-video" label="Video quality" sub>
+            <select
+              id="default-video"
+              value={video}
+              onChange={(e) => setVideo(e.target.value)}
+              className={inputClass}
+            >
+              <Options items={VIDEO_QUALITIES} />
+            </select>
+          </Field>
+          <Field id="default-audio" label="Audio format" sub className="sm:col-span-2">
+            <select
+              id="default-audio"
+              value={audio}
+              onChange={(e) => setAudio(e.target.value)}
+              className={inputClass}
+            >
+              <Options items={AUDIO_CHOICES} />
+            </select>
+          </Field>
         </div>
-        <div className="space-y-1">
-          <label htmlFor="default-video" className="block text-xs text-slate-600">
-            Video quality
-          </label>
-          <select
-            id="default-video"
-            value={video}
-            onChange={(e) => setVideo(e.target.value)}
-            className={inputClass}
-          >
-            {VIDEO_QUALITIES.map((q) => (
-              <option key={q.value} value={q.value}>
-                {q.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label htmlFor="default-audio" className="block text-xs text-slate-600">
-            Audio format
-          </label>
-          <select
-            id="default-audio"
-            value={audio}
-            onChange={(e) => setAudio(e.target.value)}
-            className={inputClass}
-          >
-            {AUDIO_CHOICES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <p className="text-xs text-slate-500">You can still change these for any download.</p>
+        <p className={noteClass}>You can still change these for any download.</p>
       </fieldset>
 
-      <div className="space-y-2">
-        <label htmlFor="concurrency" className="block text-sm font-medium text-slate-700">
-          Downloads at the same time
-        </label>
-        <select
-          id="concurrency"
-          value={concurrency}
-          onChange={(e) => setConcurrency(Number(e.target.value))}
-          className={inputClass}
-        >
-          {[1, 2, 3, 4].map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="space-y-2">
-        <label htmlFor="language" className="block text-sm font-medium text-slate-700">
-          Language
-        </label>
+      <Field
+        id="language"
+        label="Language"
+        note="For YouTube’s dubbed audio tracks and for subtitles. You get this language when the video has it, otherwise the original."
+      >
         <select
           id="language"
           value={language}
           onChange={(e) => setLanguage(e.target.value)}
           className={inputClass}
         >
-          {LANGUAGES.map((l) => (
-            <option key={l.value} value={l.value}>
-              {l.label}
-            </option>
-          ))}
+          <Options items={LANGUAGES} />
         </select>
-        <p className="text-xs text-slate-500">
-          Used for YouTube’s dubbed audio tracks and for subtitles. You get this language when the
-          video has it, otherwise the original.
-        </p>
-      </div>
+      </Field>
 
-      <div className="space-y-2">
-        <label htmlFor="cookies" className="block text-sm font-medium text-slate-700">
-          Use cookies from
-        </label>
+      <Field
+        id="cookies"
+        label="Use cookies from"
+        note="Only for videos that need a sign-in — Vimeo, private or members-only. Pick a browser you’re signed in with; Firefox works best. Safari needs Media Downloader allowed under System Settings → Privacy & Security → Full Disk Access. Chrome on Windows often won’t share its cookies."
+      >
         <select
           id="cookies"
           value={cookies}
@@ -181,21 +183,28 @@ function SettingsForm({ initial }: { initial: Settings }) {
           className={inputClass}
         >
           <option value="">No browser (default)</option>
-          {BROWSERS.map((b) => (
-            <option key={b.value} value={b.value}>
-              {b.label}
-            </option>
-          ))}
+          <Options items={BROWSERS} />
         </select>
-        <p className="text-xs text-slate-500">
-          Only needed for videos that require being signed in — Vimeo, private or members-only
-          videos. Pick a browser you’re signed in with. Firefox works best. Safari needs Media
-          Downloader switched on under System Settings → Privacy &amp; Security → Full Disk Access.
-          Chrome on Windows often won’t share its cookies.
-        </p>
-      </div>
+      </Field>
 
-      <div className="flex items-center gap-3">
+      <Field id="concurrency" label="Downloads at the same time">
+        <select
+          id="concurrency"
+          value={concurrency}
+          onChange={(e) => setConcurrency(Number(e.target.value))}
+          className={inputClass}
+        >
+          <Options items={[1, 2, 3, 4].map((n) => ({ value: n, label: String(n) }))} />
+        </select>
+      </Field>
+
+      <div className="flex items-end justify-end gap-3">
+        {save.isSuccess && !dirty && <span className="text-sm text-green-700">Saved</span>}
+        {save.error && (
+          <span role="alert" className="text-sm text-red-700">
+            {save.error.message}
+          </span>
+        )}
         <button
           type="button"
           disabled={!dirty || save.isPending}
@@ -210,18 +219,12 @@ function SettingsForm({ initial }: { initial: Settings }) {
               default_audio: audio,
             })
           }
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+          className="rounded-md bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
         >
           {save.isPending ? 'Saving…' : 'Save'}
         </button>
-        {save.isSuccess && !dirty && <span className="text-sm text-green-700">Saved</span>}
-        {save.error && (
-          <span role="alert" className="text-sm text-red-700">
-            {save.error.message}
-          </span>
-        )}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -234,27 +237,29 @@ function EngineUpdate() {
   });
   const running = health.data?.ytdlp_update?.state === 'running' || update.isPending;
   return (
-    <div className="space-y-2 border-t border-slate-100 pt-4">
-      <p className="text-sm font-medium text-slate-700">
-        Downloader engine (yt-dlp){health.data?.ytdlp ? ` · ${health.data.ytdlp}` : ''}
-      </p>
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          disabled={running}
-          onClick={() => update.mutate()}
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {running ? 'Updating…' : 'Update now'}
-        </button>
-        {update.data && <span className="text-sm text-green-700">{update.data.message}</span>}
-        {update.error && (
-          <span role="alert" className="text-sm text-red-700">
-            {update.error.message}
-          </span>
-        )}
+    <div className="space-y-1 border-t border-slate-100 pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-medium text-slate-700">
+          Downloader engine (yt-dlp){health.data?.ytdlp ? ` · ${health.data.ytdlp}` : ''}
+        </p>
+        <div className="flex items-center gap-3">
+          {update.data && <span className="text-sm text-green-700">{update.data.message}</span>}
+          {update.error && (
+            <span role="alert" className="text-sm text-red-700">
+              {update.error.message}
+            </span>
+          )}
+          <button
+            type="button"
+            disabled={running}
+            onClick={() => update.mutate()}
+            className={buttonClass}
+          >
+            {running ? 'Updating…' : 'Update now'}
+          </button>
+        </div>
       </div>
-      <p className="text-xs text-slate-500">
+      <p className={noteClass}>
         If YouTube suddenly stops working, this is the first thing to try. The app also checks on
         every launch.
       </p>
