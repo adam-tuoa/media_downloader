@@ -247,7 +247,10 @@ To do, roughly in order of value for effort (list reviewed with Adam 2026-09-09)
       before) would replace the launcher and packaging — not worth it. A window changes nothing about cookies:
       `--cookies-from-browser` reads the user's real browser. The real cookie fix, if Safari/Chrome keep biting,
       is an in-app "Sign in to Vimeo" webview that exports its cookies to a `cookies.txt` for yt-dlp — needs
-      pywebview.
+      pywebview. **Clean shutdown (Adam, 2026-09-09):** Quit stays (it only shows in desktop mode — closing the
+      tab leaves an invisible `pythonw.exe` behind). Add an *idle shutdown* with the window: the UI polls
+      `/api/health` every minute, so when no page has checked in for ~2 minutes and nothing is downloading, the
+      server exits by itself. Works for a tab, app mode (no close event) and pywebview alike; never kills a batch.
 
 **Unchanged from before**
 - Linux AppImage (needs libfuse2 on the user's machine; tar.gz ships first)
