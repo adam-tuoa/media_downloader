@@ -262,7 +262,11 @@ To do, roughly in order of value for effort (list reviewed with Adam 2026-09-09)
 
 **Unchanged from before**
 - Linux AppImage (needs libfuse2 on the user's machine; tar.gz ships first)
-- App icon (.icns / .ico) and a signed macOS build (Developer ID, US$99/yr) if the right-click-Open dance bothers anyone
+- App icon (.icns / .ico) and a signed macOS build (Developer ID, US$99/yr) if the right-click-Open dance bothers anyone.
+  **Do this with Briefcase** (decided 2026-09-09): one tool for all three OSes, icon from one PNG, Info.plist/MSI/.deb,
+  signing + notarization hooks, and it copies bundled binaries instead of rewriting them (no more PyInstaller
+  workaround). Per-OS builds are no extra cost — the release matrix already builds on three runners. Try it on a
+  branch with a CI build; switch only if Defender leaves Briefcase's small Windows launcher stub alone.
 - Trim/clip ranges (`--download-sections`)
 - `MODE=hosted`: auth, Library + retention, rate limits, Docker with ffmpeg + deno
 - Pre-probe preview in the form ("Check link" from Phase 0) if Dad wants to confirm before queueing
