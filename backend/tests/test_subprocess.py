@@ -120,7 +120,8 @@ async def test_download_streams_progress_on_the_loop_thread(fake_ytdlp):
     assert [(e.stage, e.postprocessor) for e in events if e.stage == "postprocess"] == [
         ("postprocess", "Merger")
     ]
-    assert events[0].fraction == 0.5 and events[0].eta == 1
+    first = next(e for e in events if e.stage == "download")
+    assert first.fraction == 0.5 and first.eta == 1
     assert threads == {threading.get_ident()}, "callbacks must run on the event-loop thread"
 
 
