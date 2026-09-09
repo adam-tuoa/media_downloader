@@ -245,7 +245,10 @@ To do, roughly in order of value for effort (list reviewed with Adam 2026-09-09)
 - [ ] **A window instead of a browser tab.** Decided 2026-09-09: **pywebview first** (native window on the OS
       engine — WKWebView / WebView2 — our icon, close-to-quit, a native folder picker for Settings), **app mode as the
       fallback** where pywebview can't run (Linux without webkit2gtk). Electron (150-200 MB, Chromium bundled) and
-      Tauri (Rust rewrite of the launcher) rejected. The options, for the record — cheapest: Chromium "app mode" — launch Edge (always present on
+      Tauri (Rust rewrite of the launcher) rejected. BeeWare considered too: Toga as the UI would be a full rewrite
+      into a smaller widget set; Toga's WebView is pywebview with more baggage; Briefcase (packaging) needs the same
+      per-OS build hosts we already have — a "maybe later" only if signed, store-style bundles are wanted. The options,
+      for the record — cheapest: Chromium "app mode" — launch Edge (always present on
       Windows), Chrome or Chromium with `--app=<launch URL>` when one is installed, else the default browser as
       now. No tabs or address bar, own taskbar entry, zero new dependencies. Next step up: pywebview (native
       WKWebView / WebView2; Linux needs system webkit2gtk, so keep the browser fallback there). Tauri (listed
