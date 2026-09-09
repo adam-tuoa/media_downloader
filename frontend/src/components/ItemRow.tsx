@@ -3,8 +3,8 @@ import { FolderOpen, Play, RotateCw, X } from 'lucide-react';
 import { cancelItem, retryItem, reveal, type Item } from '../api';
 import { barWidth, describeItem } from '../lib/items';
 import { useOpenFile } from '../lib/openFile';
-import ActionButton from './ActionButton';
 import { Thumbnail, Title } from './FileLink';
+import IconButton from './IconButton';
 
 const STATUS_STYLE: Record<Item['status'], { chip: string; bar: string; label: string }> = {
   queued: { chip: 'bg-slate-200 text-slate-700', bar: 'bg-slate-300', label: 'Waiting' },
@@ -31,30 +31,28 @@ export default function ItemRow({ item }: { item: Item }) {
   const failed = item.status === 'error' || item.status === 'cancelled';
 
   return (
-    <li className="flex items-start gap-3 py-3">
+    <li className="flex items-center gap-3 py-2">
       <Thumbnail src={item.thumbnail} title={title} onOpen={onOpen} />
 
-      <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <Title text={title} onOpen={onOpen} />
-          </div>
-          <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${style.chip}`}>
-            {style.label}
-          </span>
-        </div>
+      <div className="min-w-0 flex-1">
+        <Title text={title} onOpen={onOpen} />
         <p
           className={`truncate text-sm ${item.status === 'error' ? 'text-red-700' : 'text-slate-600'}`}
           title={describeItem(item)}
         >
           {describeItem(item)}
+          <span
+            className={`ml-2 rounded-full px-1.5 py-px text-[11px] font-semibold ${style.chip}`}
+          >
+            {style.label}
+          </span>
         </p>
         {open.error && (
           <p role="alert" className="text-sm text-red-700">
             {open.error.message}
           </p>
         )}
-        <div className="h-2 w-full overflow-hidden rounded bg-slate-100">
+        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded bg-slate-100">
           <div
             role="progressbar"
             aria-valuenow={barWidth(item)}
@@ -64,27 +62,22 @@ export default function ItemRow({ item }: { item: Item }) {
             style={{ width: `${indeterminate ? 100 : barWidth(item)}%` }}
           />
         </div>
-        <div className="flex flex-wrap gap-2 pt-1">
-          {active && (
-            <ActionButton icon={X} label="Cancel" onClick={() => cancel.mutate(item.id)} />
-          )}
-          {failed && (
-            <ActionButton
-              icon={RotateCw}
-              label="Retry"
-              tone="primary"
-              onClick={() => retry.mutate(item.id)}
-            />
-          )}
-          {onOpen && <ActionButton icon={Play} label="Open" tone="primary" onClick={onOpen} />}
-          {item.status === 'done' && (
-            <ActionButton
-              icon={FolderOpen}
-              label="Show file"
-              onClick={() => show.mutate(item.id)}
-            />
-          )}
-        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1">
+        {active && <IconButton icon={X} label="Cancel" onClick={() => cancel.mutate(item.id)} />}
+        {failed && (
+          <IconButton
+            icon={RotateCw}
+            label="Retry"
+            tone="primary"
+            onClick={() => retry.mutate(item.id)}
+          />
+        )}
+        {onOpen && <IconButton icon={Play} label="Open" tone="primary" onClick={onOpen} />}
+        {item.status === 'done' && (
+          <IconButton icon={FolderOpen} label="Show file" onClick={() => show.mutate(item.id)} />
+        )}
       </div>
     </li>
   );

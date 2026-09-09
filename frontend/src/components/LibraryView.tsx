@@ -16,6 +16,7 @@ import { useOpenFile } from '../lib/openFile';
 import { inputClass } from '../lib/ui';
 import ActionButton from './ActionButton';
 import { Thumbnail, Title } from './FileLink';
+import IconButton from './IconButton';
 import Modal from './Modal';
 
 const PAGE = 100;
@@ -66,30 +67,26 @@ function LibraryRow({
     .join(' · ');
 
   return (
-    <li className={`flex items-start gap-3 py-3 ${selected ? 'bg-blue-50/60' : ''}`}>
+    <li className={`flex items-center gap-3 py-2 ${selected ? 'bg-blue-50/60' : ''}`}>
       <input
         type="checkbox"
         checked={selected}
         onChange={(e) => onSelect(e.target.checked)}
         aria-label={`Select ${title}`}
-        className="mt-4 h-4 w-4 shrink-0"
+        className="h-4 w-4 shrink-0"
       />
       <Thumbnail src={item.thumbnail} title={title} onOpen={onOpen} />
-      <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <Title text={title} onOpen={onOpen} />
-          </div>
+      <div className="min-w-0 flex-1">
+        <Title text={title} onOpen={onOpen} />
+        <p className="truncate text-sm text-slate-600" title={meta}>
+          {meta}
           <span
-            className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+            className={`ml-2 rounded-full px-1.5 py-px text-[11px] font-semibold ${
               item.exists ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
             }`}
           >
             {item.exists ? 'On disk' : 'Missing'}
           </span>
-        </div>
-        <p className="truncate text-sm text-slate-600" title={meta}>
-          {meta}
         </p>
         <p
           className={`truncate text-xs ${item.exists ? 'text-slate-500' : 'text-amber-700'}`}
@@ -104,31 +101,27 @@ function LibraryRow({
             {open.error.message}
           </p>
         )}
-        <div className="flex flex-wrap gap-2 pt-1">
-          {onOpen && <ActionButton icon={Play} label="Open" tone="primary" onClick={onOpen} />}
-          {item.exists && (
-            <ActionButton
-              icon={FolderOpen}
-              label="Show file"
-              onClick={() => show.mutate(item.id)}
-            />
-          )}
-          <ActionButton
-            icon={RotateCw}
-            label="Download again"
-            onClick={() => again.mutate(item.id)}
-            disabled={again.isPending}
-          />
-          <ActionButton
-            icon={Trash2}
-            label="Remove"
-            tone="danger"
-            onClick={() => {
-              if (window.confirm('Remove this from the history? The file itself is not touched.'))
-                forget.mutate(item.id);
-            }}
-          />
-        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        {onOpen && <IconButton icon={Play} label="Open" tone="primary" onClick={onOpen} />}
+        {item.exists && (
+          <IconButton icon={FolderOpen} label="Show file" onClick={() => show.mutate(item.id)} />
+        )}
+        <IconButton
+          icon={RotateCw}
+          label="Download again"
+          onClick={() => again.mutate(item.id)}
+          disabled={again.isPending}
+        />
+        <IconButton
+          icon={Trash2}
+          label="Remove"
+          tone="danger"
+          onClick={() => {
+            if (window.confirm('Remove this from the history? The file itself is not touched.'))
+              forget.mutate(item.id);
+          }}
+        />
       </div>
     </li>
   );

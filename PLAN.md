@@ -224,8 +224,9 @@ To do, roughly in order of value for effort (list reviewed with Adam 2026-09-09)
       the language. Saving writes both, so later default changes never move anyone. No country setting: geo-blocks
       are by IP address, yt-dlp's country flag only fakes a header YouTube ignores, and dubbed audio and subtitles
       are keyed by language.
-- [x] **Library polish — done 2026-09-09.** Icon buttons *with* words (`lucide-react`; `ActionButton`) on the
-      Library and the board; checkbox multi-select with a toolbar (select all, "Remove selected", "Move to
+- [x] **Library polish — done 2026-09-09.** Compact rows (Adam's call, same day): icon-only buttons inline on the
+      right with tooltips and accessible names (`lucide-react`; `IconButton`), the On disk / Missing pill small
+      in the meta line; the selection toolbar keeps icon + word (`ActionButton`). Same on the board; checkbox multi-select with a toolbar (select all, "Remove selected", "Move to
       folder…", clear); the move dialog names a folder (existing groups offered as chips, blank = back to the main
       folder): files go under `<output>/<group>/` via `move_into` (never overwriting) and the items' `collection`
       becomes the group, so *Download again* lands there too. Missing files are skipped and named in the result.
