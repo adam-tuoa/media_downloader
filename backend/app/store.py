@@ -243,6 +243,15 @@ class Store:
             f"SELECT COUNT(*) FROM items JOIN jobs ON jobs.id = items.job_id {where}", params
         ).fetchone()[0]
 
+    def collections(self) -> list[str]:
+        """Folder names finished downloads are grouped in: playlists, albums, user-made groups."""
+        rows = self.conn.execute(
+            "SELECT DISTINCT collection FROM items WHERE status = ? AND collection IS NOT NULL"
+            " ORDER BY collection COLLATE NOCASE",
+            (DONE,),
+        ).fetchall()
+        return [row[0] for row in rows]
+
     def delete_item(self, item_id: str) -> None:
         """Forget one download; a job left with no items goes too."""
         with self.conn:

@@ -224,6 +224,38 @@ def test_reveal_opens_folder_or_file(client, fake, monkeypatch, tmp_path):
     assert opened[-1].endswith(".mp4")
 
 
+def test_library_move_and_bulk_remove(client, fake, tmp_path):
+    links = [{"url": f"https://youtu.be/v{n}000000000"} for n in (1, 2, 3)]
+    job = client.post("/api/jobs", json={"links": links}).json()
+    done = wait_for(client, job["id"], "done")
+    ids = [i["id"] for i in done["items"]]
+    Path(done["items"][2]["file_path"]).unlink()  # this one has gone missing
+
+    r = client.post("/api/library/move", json={"item_ids": ids, "group": "Road trip"})
+    assert r.status_code == 200, r.text
+    assert r.json()["moved"] == 2 and r.json()["group"] == "Road trip"
+    assert [s["reason"] for s in r.json()["skipped"]] == ["file missing"]
+    lib = client.get("/api/library").json()
+    assert lib["groups"] == ["Road trip"]
+    moved = [i for i in lib["items"] if i["id"] in ids[:2]]
+    assert all(i["collection"] == "Road trip" and i["exists"] for i in moved)
+    assert all(Path(i["file_path"]).parent == tmp_path / "out" / "Road trip" for i in moved)
+
+    # Already there: nothing renamed, still counted as moved.
+    again = client.post("/api/library/move", json={"item_ids": ids[:1], "group": "Road trip"})
+    assert again.json()["moved"] == 1 and Path(moved[0]["file_path"]).exists()
+
+    # Blank name = back to the main folder, no collection.
+    back = client.post("/api/library/move", json={"item_ids": ids[:1], "group": ""})
+    assert back.json()["moved"] == 1 and back.json()["group"] is None
+    first = next(i for i in client.get("/api/library").json()["items"] if i["id"] == ids[0])
+    assert first["collection"] is None and Path(first["file_path"]).parent == tmp_path / "out"
+
+    r = client.post("/api/library/remove", json={"item_ids": [*ids, "nope"]})
+    assert r.json()["removed"] == 3
+    assert client.get("/api/library").json()["total"] == 0
+
+
 def test_open_plays_a_finished_file(client, fake, monkeypatch):
     opened = []
     monkeypatch.setattr(desktop, "open_file", lambda path: opened.append(str(path)))

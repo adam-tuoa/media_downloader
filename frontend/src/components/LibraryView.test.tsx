@@ -61,6 +61,7 @@ describe('LibraryView', () => {
           ],
           total: 2,
           offset: 0,
+          groups: ['Mixtape'],
         });
       })
     );
@@ -86,5 +87,63 @@ describe('LibraryView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'A Song' }));
     await vi.waitFor(() => expect(calls).toContain('POST /api/items/i1/open'));
     expect(screen.queryByRole('button', { name: 'Gone' })).not.toBeInTheDocument();
+  });
+
+  it('moves and removes selected downloads', async () => {
+    const calls: { method: string; url: string; body?: unknown }[] = [];
+    vi.stubGlobal('confirm', () => true);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const entry = {
+          method: init?.method ?? 'GET',
+          url: String(url),
+          body: init?.body ? JSON.parse(String(init.body)) : undefined,
+        };
+        calls.push(entry);
+        if (entry.url.includes('/api/library/move'))
+          return json({
+            moved: 1,
+            skipped: [{ id: 'i2', title: 'Gone', reason: 'file missing' }],
+            group: 'Road trip',
+          });
+        if (entry.url.includes('/api/library/remove')) return json({ ok: true, removed: 2 });
+        return json({
+          items: [item({}), item({ id: 'i2', title: 'Gone', exists: false, collection: null })],
+          total: 2,
+          offset: 0,
+          groups: ['Mixtape'],
+        });
+      })
+    );
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <LibraryView onRequeued={() => {}} />
+      </QueryClientProvider>
+    );
+    await screen.findByText('A Song');
+    fireEvent.click(screen.getByLabelText('Select all'));
+    expect(screen.getByText('2 selected')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move to folder…' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mixtape' })); // an existing group fills the name
+    expect(screen.getByLabelText('Folder name')).toHaveValue('Mixtape');
+    fireEvent.change(screen.getByLabelText('Folder name'), { target: { value: 'Road trip' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Move' }));
+    expect(
+      await screen.findByText(/Moved 1 into “Road trip”\. Skipped 1: Gone \(file missing\)\./)
+    ).toBeInTheDocument();
+    expect(calls.find((c) => c.url.includes('/api/library/move'))?.body).toEqual({
+      item_ids: ['i1', 'i2'],
+      group: 'Road trip',
+    });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Select all'));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove selected' }));
+    await screen.findByText(/Removed 2 from the history/);
+    expect(calls.find((c) => c.url.includes('/api/library/remove'))?.body).toEqual({
+      item_ids: ['i1', 'i2'],
+    });
   });
 });

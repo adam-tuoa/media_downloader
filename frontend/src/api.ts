@@ -163,6 +163,15 @@ export interface LibraryPage {
   items: LibraryItem[];
   total: number;
   offset: number;
+  /** Folder names finished downloads are grouped in (playlists, albums, user groups). */
+  groups: string[];
+}
+
+export interface MoveResult {
+  moved: number;
+  skipped: { id: string; title: string | null; reason: string }[];
+  /** The folder name as saved, or null for the main folder. */
+  group: string | null;
 }
 
 export const getLibrary = (q: string, offset = 0, limit = 100) =>
@@ -170,6 +179,11 @@ export const getLibrary = (q: string, offset = 0, limit = 100) =>
     'GET',
     `/api/library?q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}`
   );
+export const removeDownloads = (itemIds: string[]) =>
+  request<{ ok: true; removed: number }>('POST', '/api/library/remove', { item_ids: itemIds });
+/** Move the files into a folder of that name (blank = the main folder) and group them there. */
+export const moveDownloads = (itemIds: string[], group: string) =>
+  request<MoveResult>('POST', '/api/library/move', { item_ids: itemIds, group });
 export const redownload = (itemId: string) =>
   request<Job>('POST', `/api/library/${itemId}/redownload`);
 export const forgetDownload = (itemId: string) =>

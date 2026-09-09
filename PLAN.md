@@ -224,11 +224,12 @@ To do, roughly in order of value for effort (list reviewed with Adam 2026-09-09)
       the language. Saving writes both, so later default changes never move anyone. No country setting: geo-blocks
       are by IP address, yt-dlp's country flag only fakes a header YouTube ignores, and dubbed audio and subtitles
       are keyed by language.
-- [ ] **Library polish.** Icons (`lucide-react`, tree-shaken) *with* short labels — icons alone are a gamble for
-      a non-technical user; multi-select with checkboxes → "Remove selected" (batch endpoint); "Move selected
-      into a folder" = a user-made group: moves the files under `<output>/<group>/` and sets `collection` on the
-      items so *Download again* lands there too (`destination()` already does that). Never overwrite; skip missing
-      files with a message. Same icon set on the jobs board.
+- [x] **Library polish — done 2026-09-09.** Icon buttons *with* words (`lucide-react`; `ActionButton`) on the
+      Library and the board; checkbox multi-select with a toolbar (select all, "Remove selected", "Move to
+      folder…", clear); the move dialog names a folder (existing groups offered as chips, blank = back to the main
+      folder): files go under `<output>/<group>/` via `move_into` (never overwriting) and the items' `collection`
+      becomes the group, so *Download again* lands there too. Missing files are skipped and named in the result.
+      `POST /api/library/remove`, `POST /api/library/move`; `groups` in the library page.
 - [x] **Open in the OS player — done 2026-09-09.** The thumbnail and the title of any finished download, on the
       board and in the Library, open the file with whatever the OS uses for it (`open` / `os.startfile` /
       `xdg-open`; `POST /api/items/{id}/open`, 404 when the file has gone). An in-app player (`GET /api/library/{id}/file`, Starlette 1.6

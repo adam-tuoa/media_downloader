@@ -1,15 +1,36 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { forgetDownload, getLibrary, redownload, reveal, type LibraryItem } from '../api';
+import { FolderInput, FolderOpen, Play, RotateCw, Trash2, X } from 'lucide-react';
+import {
+  forgetDownload,
+  getLibrary,
+  moveDownloads,
+  redownload,
+  removeDownloads,
+  reveal,
+  type LibraryItem,
+} from '../api';
 import { baseName, formatDuration, formatWhen } from '../lib/format';
-import { describeJob } from '../lib/items';
-import { inputClass } from '../lib/ui';
+import { describeJob, describeMove } from '../lib/items';
 import { useOpenFile } from '../lib/openFile';
+import { inputClass } from '../lib/ui';
+import ActionButton from './ActionButton';
 import { Thumbnail, Title } from './FileLink';
+import Modal from './Modal';
 
 const PAGE = 100;
 
-function LibraryRow({ item, onRequeued }: { item: LibraryItem; onRequeued: () => void }) {
+function LibraryRow({
+  item,
+  selected,
+  onSelect,
+  onRequeued,
+}: {
+  item: LibraryItem;
+  selected: boolean;
+  onSelect: (on: boolean) => void;
+  onRequeued: () => void;
+}) {
   const queryClient = useQueryClient();
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['library'] });
   const again = useMutation({
@@ -45,18 +66,31 @@ function LibraryRow({ item, onRequeued }: { item: LibraryItem; onRequeued: () =>
     .join(' · ');
 
   return (
-    <li className="flex items-start gap-3 py-3">
+    <li className={`flex items-start gap-3 py-3 ${selected ? 'bg-blue-50/60' : ''}`}>
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={(e) => onSelect(e.target.checked)}
+        aria-label={`Select ${title}`}
+        className="mt-4 h-4 w-4 shrink-0"
+      />
       <Thumbnail src={item.thumbnail} title={title} onOpen={onOpen} />
-      <div className="min-w-0 flex-1">
-        <Title text={title} onOpen={onOpen} />
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <Title text={title} onOpen={onOpen} />
+          </div>
+          <span
+            className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+              item.exists ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+            }`}
+          >
+            {item.exists ? 'On disk' : 'Missing'}
+          </span>
+        </div>
         <p className="truncate text-sm text-slate-600" title={meta}>
           {meta}
         </p>
-        {open.error && (
-          <p role="alert" className="text-sm text-red-700">
-            {open.error.message}
-          </p>
-        )}
         <p
           className={`truncate text-xs ${item.exists ? 'text-slate-500' : 'text-amber-700'}`}
           title={item.file_path ?? ''}
@@ -65,55 +99,170 @@ function LibraryRow({ item, onRequeued }: { item: LibraryItem; onRequeued: () =>
             ? baseName(item.file_path)
             : `File missing — was ${baseName(item.file_path)}`}
         </p>
-      </div>
-      <div className="flex shrink-0 flex-col items-end gap-1 text-sm">
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-            item.exists ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
-          }`}
-        >
-          {item.exists ? 'On disk' : 'Missing'}
-        </span>
-        {item.exists && (
-          <button
-            type="button"
-            onClick={() => show.mutate(item.id)}
-            className="text-blue-700 underline"
-          >
-            Show file
-          </button>
+        {open.error && (
+          <p role="alert" className="text-sm text-red-700">
+            {open.error.message}
+          </p>
         )}
-        <button
-          type="button"
-          onClick={() => again.mutate(item.id)}
-          disabled={again.isPending}
-          className="text-blue-700 underline disabled:opacity-50"
-        >
-          Download again
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (window.confirm('Remove this from the history? The file itself is not touched.'))
-              forget.mutate(item.id);
-          }}
-          className="text-slate-500 underline hover:text-slate-800"
-        >
-          Remove
-        </button>
+        <div className="flex flex-wrap gap-2 pt-1">
+          {onOpen && <ActionButton icon={Play} label="Open" tone="primary" onClick={onOpen} />}
+          {item.exists && (
+            <ActionButton
+              icon={FolderOpen}
+              label="Show file"
+              onClick={() => show.mutate(item.id)}
+            />
+          )}
+          <ActionButton
+            icon={RotateCw}
+            label="Download again"
+            onClick={() => again.mutate(item.id)}
+            disabled={again.isPending}
+          />
+          <ActionButton
+            icon={Trash2}
+            label="Remove"
+            tone="danger"
+            onClick={() => {
+              if (window.confirm('Remove this from the history? The file itself is not touched.'))
+                forget.mutate(item.id);
+            }}
+          />
+        </div>
       </div>
     </li>
   );
 }
 
+function MoveDialog({
+  count,
+  groups,
+  busy,
+  error,
+  onMove,
+  onClose,
+}: {
+  count: number;
+  groups: string[];
+  busy: boolean;
+  error: string | null;
+  onMove: (group: string) => void;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState('');
+  return (
+    <Modal
+      title={`Move ${count} ${count === 1 ? 'download' : 'downloads'} into a folder`}
+      onClose={onClose}
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onMove(name.trim());
+        }}
+        className="space-y-4"
+      >
+        <div className="space-y-2">
+          <label htmlFor="group" className="block text-sm font-medium text-slate-700">
+            Folder name
+          </label>
+          <input
+            id="group"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Road trip"
+            className={inputClass}
+            autoFocus
+          />
+          {groups.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {groups.map((g) => (
+                <button
+                  type="button"
+                  key={g}
+                  onClick={() => setName(g)}
+                  className="rounded-full border border-slate-300 px-3 py-1 text-sm hover:bg-slate-50"
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-slate-500">
+            The files move into a folder with that name inside your downloads folder, and “Download
+            again” will put them there too. Leave the name blank to move them back to the main
+            folder. Files that have gone missing are skipped.
+          </p>
+        </div>
+        {error && (
+          <p role="alert" className="text-sm text-red-700">
+            {error}
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={busy}
+            className="rounded-md bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+          >
+            {busy ? 'Moving…' : 'Move'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 export default function LibraryView({ onRequeued }: { onRequeued: () => void }) {
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(PAGE);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [moving, setMoving] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const library = useQuery({
     queryKey: ['library', query, limit],
     queryFn: () => getLibrary(query, 0, limit),
     placeholderData: (previous) => previous,
   });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['library'] });
+
+  const items = library.data?.items ?? [];
+  const chosen = items.filter((i) => selected.has(i.id)); // only rows still listed count
+  const allChosen = items.length > 0 && chosen.length === items.length;
+
+  const remove = useMutation({
+    mutationFn: removeDownloads,
+    onSuccess: (data) => {
+      setNotice(`Removed ${data.removed} from the history. The files themselves are untouched.`);
+      setSelected(new Set());
+      void refresh();
+    },
+  });
+  const move = useMutation({
+    mutationFn: ({ ids, group }: { ids: string[]; group: string }) => moveDownloads(ids, group),
+    onSuccess: (data) => {
+      setNotice(describeMove(data));
+      setSelected(new Set());
+      setMoving(false);
+      void refresh();
+    },
+  });
+
+  const toggle = (id: string, on: boolean) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
 
   return (
     <section className="space-y-4 rounded-xl bg-white p-5 shadow-md sm:p-6">
@@ -137,33 +286,111 @@ export default function LibraryView({ onRequeued }: { onRequeued: () => void }) 
         className={inputClass}
         aria-label="Search the library"
       />
+      {items.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={allChosen}
+              ref={(el) => {
+                if (el) el.indeterminate = chosen.length > 0 && !allChosen;
+              }}
+              onChange={(e) =>
+                setSelected(e.target.checked ? new Set(items.map((i) => i.id)) : new Set())
+              }
+              aria-label="Select all"
+              className="h-4 w-4"
+            />
+            {chosen.length ? `${chosen.length} selected` : 'Select all'}
+          </label>
+          {chosen.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <ActionButton
+                icon={FolderInput}
+                label="Move to folder…"
+                tone="primary"
+                onClick={() => setMoving(true)}
+              />
+              <ActionButton
+                icon={Trash2}
+                label="Remove selected"
+                tone="danger"
+                disabled={remove.isPending}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `Remove ${chosen.length} from the history? The files themselves are not touched.`
+                    )
+                  )
+                    remove.mutate(chosen.map((i) => i.id));
+                }}
+              />
+              <ActionButton icon={X} label="Clear" onClick={() => setSelected(new Set())} />
+            </div>
+          )}
+        </div>
+      )}
+      {notice && (
+        <p className="flex items-start justify-between gap-2 rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-900">
+          <span>{notice}</span>
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            aria-label="Dismiss"
+            className="shrink-0 font-semibold"
+          >
+            ×
+          </button>
+        </p>
+      )}
+      {remove.error && (
+        <p role="alert" className="rounded-md bg-red-100 p-3 text-red-800">
+          {remove.error.message}
+        </p>
+      )}
       {library.isPending ? (
         <p className="text-sm text-slate-500">Loading…</p>
       ) : library.error ? (
         <p role="alert" className="rounded-md bg-red-100 p-3 text-red-800">
           {library.error.message}
         </p>
-      ) : library.data.items.length === 0 ? (
+      ) : items.length === 0 ? (
         <p className="text-center text-slate-500">
           {query ? 'Nothing matches that.' : 'Nothing downloaded yet.'}
         </p>
       ) : (
         <>
           <ul className="divide-y divide-slate-100">
-            {library.data.items.map((item) => (
-              <LibraryRow key={item.id} item={item} onRequeued={onRequeued} />
+            {items.map((item) => (
+              <LibraryRow
+                key={item.id}
+                item={item}
+                selected={selected.has(item.id)}
+                onSelect={(on) => toggle(item.id, on)}
+                onRequeued={onRequeued}
+              />
             ))}
           </ul>
-          {library.data.items.length < library.data.total && (
+          {items.length < (library.data?.total ?? 0) && (
             <button
               type="button"
               onClick={() => setLimit((n) => n + PAGE)}
               className="w-full rounded-md border border-slate-300 py-2 text-sm font-medium hover:bg-slate-50"
             >
-              Show more ({library.data.total - library.data.items.length} left)
+              Show more ({(library.data?.total ?? 0) - items.length} left)
             </button>
           )}
         </>
+      )}
+      {moving && (
+        <MoveDialog
+          count={chosen.length}
+          groups={library.data?.groups ?? []}
+          busy={move.isPending}
+          error={move.error?.message ?? null}
+          onMove={(group) => move.mutate({ ids: chosen.map((i) => i.id), group })}
+          onClose={() => setMoving(false)}
+        />
       )}
     </section>
   );

@@ -20,8 +20,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from app import __version__, desktop, formats, links, updates, ytdlp
 from app.paths import data_dir
-from app.store import ACTIVE, RUNNING, NewItem, Store
-from app.worker import MAX_CONCURRENCY, Manager, current_settings
+from app.store import ACTIVE, DONE, RUNNING, NewItem, Store
+from app.worker import MAX_CONCURRENCY, Manager, current_settings, move_into, safe_name
 
 
 async def _desktop_startup(app: FastAPI, manager: Manager) -> None:
@@ -151,6 +151,14 @@ class SettingsUpdate(BaseModel):
 
 class RevealRequest(BaseModel):
     item_id: str | None = None
+
+
+class LibrarySelection(BaseModel):
+    item_ids: list[str] = Field(min_length=1, max_length=500)
+
+
+class MoveRequest(LibrarySelection):
+    group: str = Field(default="", max_length=120, description='folder name; "" = the main folder')
 
 
 @app.exception_handler(ytdlp.YtdlpError)
@@ -402,7 +410,59 @@ async def library(request: Request, q: str = "", limit: int = 100, offset: int =
     limit = max(1, min(limit, 500))
     page = store.library(query, limit, offset)
     rows = await asyncio.to_thread(_with_file_status, page)
-    return {"items": rows, "total": store.library_count(query), "offset": offset}
+    return {
+        "items": rows,
+        "total": store.library_count(query),
+        "offset": offset,
+        "groups": store.collections(),
+    }
+
+
+@app.post("/api/library/remove")
+async def forget_downloads(req: LibrarySelection, request: Request) -> dict:
+    """Take several downloads out of the history at once; files are never touched."""
+    store = _store(request)
+    removed = 0
+    for item_id in req.item_ids:
+        if store.get_item(item_id) is not None:
+            store.delete_item(item_id)
+            removed += 1
+    return {"ok": True, "removed": removed}
+
+
+def _move_items(store: Store, item_ids: list[str], group: str) -> dict:
+    """Move finished files into ``<output>/<group>/`` (or back to ``<output>``) and make that the
+    items' collection, so "Download again" lands there too. Nothing is ever overwritten; items
+    whose file has gone are skipped and reported."""
+    name = safe_name(group) if group.strip() else None
+    root = current_settings(store).output_dir
+    dest_dir = root / name if name else root
+    moved, skipped = 0, []
+    for item_id in item_ids:
+        item = store.get_item(item_id)
+        if item is None or item.status != DONE or not item.file_path:
+            skipped.append({"id": item_id, "title": None, "reason": "not a finished download"})
+            continue
+        title = item.title or item.url
+        path = Path(item.file_path)
+        if not path.exists():
+            skipped.append({"id": item_id, "title": title, "reason": "file missing"})
+            continue
+        if path.parent.resolve() != dest_dir.resolve():
+            try:
+                path = move_into(path, dest_dir)
+            except OSError as exc:
+                reason = f"couldn't move it: {exc.strerror or exc}"
+                skipped.append({"id": item_id, "title": title, "reason": reason})
+                continue
+        store.update_item(item_id, file_path=str(path), collection=name, collection_index=None)
+        moved += 1
+    return {"ok": True, "moved": moved, "skipped": skipped, "group": name}
+
+
+@app.post("/api/library/move")
+async def move_downloads(req: MoveRequest, request: Request) -> dict:
+    return await asyncio.to_thread(_move_items, _store(request), req.item_ids, req.group)
 
 
 @app.post("/api/library/{item_id}/redownload", status_code=201)

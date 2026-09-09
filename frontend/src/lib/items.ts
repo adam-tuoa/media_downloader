@@ -1,4 +1,4 @@
-import type { Item, Job } from '../api';
+import type { Item, Job, MoveResult } from '../api';
 import { baseName, formatDuration, formatSpeed, percent } from './format';
 
 export function describeItem(item: Item): string {
@@ -32,6 +32,17 @@ export function barWidth(item: Item): number {
   if (item.stage && !item.stage.startsWith('Downloading') && !item.stage.startsWith('Starting'))
     return 100;
   return percent(item.downloaded, item.total) ?? 0;
+}
+
+/** One line saying what a move did, skipped files named. */
+export function describeMove(result: MoveResult): string {
+  const where = result.group ? `into “${result.group}”` : 'back to the main folder';
+  const parts = [`Moved ${result.moved} ${where}.`];
+  if (result.skipped.length) {
+    const list = result.skipped.map((s) => `${s.title ?? s.id} (${s.reason})`).join(', ');
+    parts.push(`Skipped ${result.skipped.length}: ${list}.`);
+  }
+  return parts.join(' ');
 }
 
 export function describeJob(job: Job): string {

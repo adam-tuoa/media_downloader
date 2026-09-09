@@ -1,7 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { FolderOpen, Play, RotateCw, X } from 'lucide-react';
 import { cancelItem, retryItem, reveal, type Item } from '../api';
 import { barWidth, describeItem } from '../lib/items';
 import { useOpenFile } from '../lib/openFile';
+import ActionButton from './ActionButton';
 import { Thumbnail, Title } from './FileLink';
 
 const STATUS_STYLE: Record<Item['status'], { chip: string; bar: string; label: string }> = {
@@ -25,13 +27,22 @@ export default function ItemRow({ item }: { item: Item }) {
   const onOpen = item.status === 'done' && item.file_path ? () => open.mutate(item.id) : undefined;
   const indeterminate =
     item.status === 'running' && barWidth(item) === 0 && item.stage !== 'Downloading';
+  const active = item.status === 'queued' || item.status === 'running';
+  const failed = item.status === 'error' || item.status === 'cancelled';
 
   return (
     <li className="flex items-start gap-3 py-3">
       <Thumbnail src={item.thumbnail} title={title} onOpen={onOpen} />
 
-      <div className="min-w-0 flex-1">
-        <Title text={title} onOpen={onOpen} />
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <Title text={title} onOpen={onOpen} />
+          </div>
+          <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${style.chip}`}>
+            {style.label}
+          </span>
+        </div>
         <p
           className={`truncate text-sm ${item.status === 'error' ? 'text-red-700' : 'text-slate-600'}`}
           title={describeItem(item)}
@@ -43,7 +54,7 @@ export default function ItemRow({ item }: { item: Item }) {
             {open.error.message}
           </p>
         )}
-        <div className="mt-2 h-2 w-full overflow-hidden rounded bg-slate-100">
+        <div className="h-2 w-full overflow-hidden rounded bg-slate-100">
           <div
             role="progressbar"
             aria-valuenow={barWidth(item)}
@@ -53,39 +64,27 @@ export default function ItemRow({ item }: { item: Item }) {
             style={{ width: `${indeterminate ? 100 : barWidth(item)}%` }}
           />
         </div>
-      </div>
-
-      <div className="flex shrink-0 flex-col items-end gap-2">
-        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${style.chip}`}>
-          {style.label}
-        </span>
-        {(item.status === 'queued' || item.status === 'running') && (
-          <button
-            type="button"
-            onClick={() => cancel.mutate(item.id)}
-            className="text-sm text-slate-600 underline hover:text-slate-900"
-          >
-            Cancel
-          </button>
-        )}
-        {(item.status === 'error' || item.status === 'cancelled') && (
-          <button
-            type="button"
-            onClick={() => retry.mutate(item.id)}
-            className="text-sm text-blue-700 underline hover:text-blue-900"
-          >
-            Retry
-          </button>
-        )}
-        {item.status === 'done' && (
-          <button
-            type="button"
-            onClick={() => show.mutate(item.id)}
-            className="text-sm text-blue-700 underline hover:text-blue-900"
-          >
-            Show file
-          </button>
-        )}
+        <div className="flex flex-wrap gap-2 pt-1">
+          {active && (
+            <ActionButton icon={X} label="Cancel" onClick={() => cancel.mutate(item.id)} />
+          )}
+          {failed && (
+            <ActionButton
+              icon={RotateCw}
+              label="Retry"
+              tone="primary"
+              onClick={() => retry.mutate(item.id)}
+            />
+          )}
+          {onOpen && <ActionButton icon={Play} label="Open" tone="primary" onClick={onOpen} />}
+          {item.status === 'done' && (
+            <ActionButton
+              icon={FolderOpen}
+              label="Show file"
+              onClick={() => show.mutate(item.id)}
+            />
+          )}
+        </div>
       </div>
     </li>
   );
