@@ -149,8 +149,12 @@ export const saveSettings = (body: Partial<Settings>) =>
 /** Open a finished download in whatever the OS plays it with. */
 export const openFile = (itemId: string) =>
   request<{ ok: true; path: string }>('POST', `/api/items/${itemId}/open`);
-export const reveal = (itemId?: string) =>
-  request<{ ok: true; path: string }>('POST', '/api/reveal', { item_id: itemId ?? null });
+/** Show the downloads folder, one item's file, or a playlist's folder in the file manager. */
+export const reveal = (itemId?: string, group?: string) =>
+  request<{ ok: true; path: string }>('POST', '/api/reveal', {
+    item_id: itemId ?? null,
+    group: group ?? null,
+  });
 
 export interface LibraryItem extends Item {
   kind: Kind;
@@ -163,7 +167,7 @@ export interface LibraryPage {
   items: LibraryItem[];
   total: number;
   offset: number;
-  /** Folder names finished downloads are grouped in (playlists, albums, user groups). */
+  /** Playlists (collections): YouTube playlists, albums and user-made ones; each is a folder. */
   groups: string[];
 }
 
@@ -174,10 +178,11 @@ export interface MoveResult {
   group: string | null;
 }
 
-export const getLibrary = (q: string, offset = 0, limit = 100) =>
+export const getLibrary = (q: string, offset = 0, limit = 100, group: string | null = null) =>
   request<LibraryPage>(
     'GET',
-    `/api/library?q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}`
+    `/api/library?q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}` +
+      (group === null ? '' : `&group=${encodeURIComponent(group)}`)
   );
 export const removeDownloads = (itemIds: string[]) =>
   request<{ ok: true; removed: number }>('POST', '/api/library/remove', { item_ids: itemIds });

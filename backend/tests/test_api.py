@@ -224,7 +224,7 @@ def test_reveal_opens_folder_or_file(client, fake, monkeypatch, tmp_path):
     assert opened[-1].endswith(".mp4")
 
 
-def test_library_move_and_bulk_remove(client, fake, tmp_path):
+def test_library_move_and_bulk_remove(client, fake, tmp_path, monkeypatch):
     links = [{"url": f"https://youtu.be/v{n}000000000"} for n in (1, 2, 3)]
     job = client.post("/api/jobs", json={"links": links}).json()
     done = wait_for(client, job["id"], "done")
@@ -240,6 +240,17 @@ def test_library_move_and_bulk_remove(client, fake, tmp_path):
     moved = [i for i in lib["items"] if i["id"] in ids[:2]]
     assert all(i["collection"] == "Road trip" and i["exists"] for i in moved)
     assert all(Path(i["file_path"]).parent == tmp_path / "out" / "Road trip" for i in moved)
+
+    # Browsing one playlist, and opening its folder.
+    inside = client.get("/api/library", params={"group": "Road trip"}).json()
+    assert inside["total"] == 2 and {i["id"] for i in inside["items"]} == set(ids[:2])
+    assert client.get("/api/library", params={"group": "Nope"}).json()["total"] == 0
+    opened = []
+    monkeypatch.setattr(desktop, "reveal", lambda path: opened.append(Path(path)))
+    client.post("/api/reveal", json={"group": "Road trip"})
+    assert opened[-1] == (tmp_path / "out" / "Road trip").resolve()
+    client.post("/api/reveal", json={"group": "Nope"})  # unknown playlist: the main folder
+    assert opened[-1] == (tmp_path / "out").resolve()
 
     # Already there: nothing renamed, still counted as moved.
     again = client.post("/api/library/move", json={"item_ids": ids[:1], "group": "Road trip"})

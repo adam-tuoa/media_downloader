@@ -211,17 +211,35 @@ class Store:
 
     # --- library: every finished item, regardless of archiving ---
 
-    def library(self, query: str | None = None, limit: int = 100, offset: int = 0) -> list[dict]:
+    @staticmethod
+    def _library_filter(query: str | None, collection: str | None) -> tuple[str, list[Any]]:
         where = "WHERE items.status = ?"
         params: list[Any] = [DONE]
         if query:
             where += " AND (items.title LIKE ? OR items.url LIKE ? OR items.collection LIKE ?)"
-            like = f"%{query}%"
-            params += [like, like, like]
+            params += [f"%{query}%"] * 3
+        if collection is not None:
+            where += " AND items.collection = ?"
+            params.append(collection)
+        return where, params
+
+    def library(
+        self,
+        query: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+        collection: str | None = None,
+    ) -> list[dict]:
+        """Finished downloads, newest first - or in playlist order inside one collection."""
+        where, params = self._library_filter(query, collection)
+        order = (
+            "items.collection_index IS NULL, items.collection_index, items.finished_at DESC"
+            if collection is not None
+            else "items.finished_at DESC, items.position"
+        )
         rows = self.conn.execute(
             f"SELECT items.*, jobs.kind AS job_kind, jobs.options AS job_options FROM items"
-            f" JOIN jobs ON jobs.id = items.job_id {where}"
-            " ORDER BY items.finished_at DESC, items.position LIMIT ? OFFSET ?",
+            f" JOIN jobs ON jobs.id = items.job_id {where} ORDER BY {order} LIMIT ? OFFSET ?",
             (*params, limit, offset),
         ).fetchall()
         return [
@@ -233,12 +251,8 @@ class Store:
             for row in rows
         ]
 
-    def library_count(self, query: str | None = None) -> int:
-        where = "WHERE items.status = ?"
-        params: list[Any] = [DONE]
-        if query:
-            where += " AND (items.title LIKE ? OR items.url LIKE ? OR items.collection LIKE ?)"
-            params += [f"%{query}%"] * 3
+    def library_count(self, query: str | None = None, collection: str | None = None) -> int:
+        where, params = self._library_filter(query, collection)
         return self.conn.execute(
             f"SELECT COUNT(*) FROM items JOIN jobs ON jobs.id = items.job_id {where}", params
         ).fetchone()[0]

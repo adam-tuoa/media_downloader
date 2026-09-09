@@ -151,6 +151,7 @@ class SettingsUpdate(BaseModel):
 
 class RevealRequest(BaseModel):
     item_id: str | None = None
+    group: str | None = Field(default=None, max_length=120)  # a playlist's folder
 
 
 class LibrarySelection(BaseModel):
@@ -403,16 +404,19 @@ def _with_file_status(rows: list[dict]) -> list[dict]:
 
 
 @app.get("/api/library")
-async def library(request: Request, q: str = "", limit: int = 100, offset: int = 0) -> dict:
-    """Everything ever downloaded, newest first, noting whether each file is still there."""
+async def library(
+    request: Request, q: str = "", limit: int = 100, offset: int = 0, group: str | None = None
+) -> dict:
+    """Everything ever downloaded, newest first, noting whether each file is still there.
+    ``group`` narrows it to one playlist (collection), in playlist order."""
     store = _store(request)
     query = q.strip() or None
     limit = max(1, min(limit, 500))
-    page = store.library(query, limit, offset)
+    page = store.library(query, limit, offset, collection=group)
     rows = await asyncio.to_thread(_with_file_status, page)
     return {
         "items": rows,
-        "total": store.library_count(query),
+        "total": store.library_count(query, collection=group),
         "offset": offset,
         "groups": store.collections(),
     }
@@ -583,20 +587,24 @@ async def update_settings(req: SettingsUpdate, request: Request) -> dict:
     return _settings_dict(store)
 
 
-def _reveal_target(store: Store, item_id: str | None) -> Path:
+def _reveal_target(store: Store, item_id: str | None, group: str | None = None) -> Path:
     if item_id:
         item = store.get_item(item_id)
         if item and item.file_path and Path(item.file_path).exists():
             return Path(item.file_path)
     folder = current_settings(store).output_dir
+    if group and group.strip():
+        playlist = folder / safe_name(group)
+        if playlist.is_dir():
+            return playlist
     folder.mkdir(parents=True, exist_ok=True)
     return folder
 
 
 @app.post("/api/reveal")
 async def reveal(req: RevealRequest, request: Request) -> dict:
-    """Open the output folder, or the folder of one finished item with the file selected."""
-    target = await asyncio.to_thread(_reveal_target, _store(request), req.item_id)
+    """Open the output folder, a playlist's folder, or one item's folder with the file selected."""
+    target = await asyncio.to_thread(_reveal_target, _store(request), req.item_id, req.group)
     await asyncio.to_thread(desktop.reveal, target)
     return {"ok": True, "path": str(target)}
 

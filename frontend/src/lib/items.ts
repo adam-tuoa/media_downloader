@@ -36,8 +36,11 @@ export function barWidth(item: Item): number {
 
 /** One line saying what a move did, skipped files named. */
 export function describeMove(result: MoveResult): string {
-  const where = result.group ? `into “${result.group}”` : 'back to the main folder';
-  const parts = [`Moved ${result.moved} ${where}.`];
+  const parts = [
+    result.group
+      ? `Added ${result.moved} to “${result.group}”.`
+      : `Moved ${result.moved} back to the main folder.`,
+  ];
   if (result.skipped.length) {
     const list = result.skipped.map((s) => `${s.title ?? s.id} (${s.reason})`).join(', ');
     parts.push(`Skipped ${result.skipped.length}: ${list}.`);

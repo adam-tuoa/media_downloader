@@ -231,6 +231,10 @@ To do, roughly in order of value for effort (list reviewed with Adam 2026-09-09)
       folder): files go under `<output>/<group>/` via `move_into` (never overwriting) and the items' `collection`
       becomes the group, so *Download again* lands there too. Missing files are skipped and named in the result.
       `POST /api/library/remove`, `POST /api/library/move`; `groups` in the library page.
+      **Called "playlists" in the UI (Adam, 2026-09-09):** on disk they're folders, in the app they behave like
+      playlists, and Dad thinks in YouTube playlists. Playlist chips across the top of the Library filter it
+      (`?group=`, in playlist order), the playlist name in a row does the same, and "Open folder" beside the
+      active chip reveals its folder (`/api/reveal` with `group`). "Add to playlist…" is the move.
 - [x] **Open in the OS player — done 2026-09-09.** The thumbnail and the title of any finished download, on the
       board and in the Library, open the file with whatever the OS uses for it (`open` / `os.startfile` /
       `xdg-open`; `POST /api/items/{id}/open`, 404 when the file has gone). An in-app player (`GET /api/library/{id}/file`, Starlette 1.6

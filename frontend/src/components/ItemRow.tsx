@@ -19,7 +19,7 @@ export default function ItemRow({ item }: { item: Item }) {
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['jobs'] });
   const cancel = useMutation({ mutationFn: cancelItem, onSuccess: refresh });
   const retry = useMutation({ mutationFn: retryItem, onSuccess: refresh });
-  const show = useMutation({ mutationFn: reveal });
+  const show = useMutation({ mutationFn: (id: string) => reveal(id) });
   const open = useOpenFile();
 
   const style = STATUS_STYLE[item.status];
@@ -37,12 +37,13 @@ export default function ItemRow({ item }: { item: Item }) {
       <div className="min-w-0 flex-1">
         <Title text={title} onOpen={onOpen} />
         <p
-          className={`truncate text-sm ${item.status === 'error' ? 'text-red-700' : 'text-slate-600'}`}
-          title={describeItem(item)}
+          className={`flex items-center gap-2 text-sm ${item.status === 'error' ? 'text-red-700' : 'text-slate-600'}`}
         >
-          {describeItem(item)}
+          <span className="min-w-0 truncate" title={describeItem(item)}>
+            {describeItem(item)}
+          </span>
           <span
-            className={`ml-2 rounded-full px-1.5 py-px text-[11px] font-semibold ${style.chip}`}
+            className={`shrink-0 rounded-full px-1.5 py-px text-[11px] font-semibold ${style.chip}`}
           >
             {style.label}
           </span>

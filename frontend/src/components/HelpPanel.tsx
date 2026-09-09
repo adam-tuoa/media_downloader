@@ -49,7 +49,9 @@ export default function HelpPanel() {
         </p>
         <p>
           The <strong>Library</strong> lists everything ever downloaded, says whether each file is
-          still where it was put, and can download again anything that has gone missing.
+          still where it was put, and can download again anything that has gone missing. Tick a few
+          and choose “Add to playlist” to move them into a folder of their own; the playlist names
+          across the top show one at a time.
         </p>
       </Section>
 

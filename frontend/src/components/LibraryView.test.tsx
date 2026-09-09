@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LibraryItem } from '../api';
 import LibraryView from './LibraryView';
@@ -38,46 +38,47 @@ const item = (over: Partial<LibraryItem>): LibraryItem => ({
   ...over,
 });
 
+const page = {
+  items: [
+    item({}),
+    item({ id: 'i2', title: 'Gone', exists: false, file_path: '/x/Gone.mp3', collection: null }),
+  ],
+  total: 2,
+  offset: 0,
+  groups: ['Mixtape'],
+};
+
+function renderLibrary(onRequeued = () => {}) {
+  return render(
+    <QueryClientProvider client={new QueryClient()}>
+      <LibraryView onRequeued={onRequeued} />
+    </QueryClientProvider>
+  );
+}
+
 describe('LibraryView', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('lists downloads with file status and re-queues on request', async () => {
+  it('lists downloads with file status, re-queues, opens files and browses playlists', async () => {
     const calls: string[] = [];
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string, init?: RequestInit) => {
         calls.push(`${init?.method ?? 'GET'} ${url}`);
         if (String(url).includes('/redownload')) return json({ id: 'j2', items: [] });
-        return json({
-          items: [
-            item({}),
-            item({
-              id: 'i2',
-              title: 'Gone',
-              exists: false,
-              file_path: '/x/Gone.mp3',
-              collection: null,
-            }),
-          ],
-          total: 2,
-          offset: 0,
-          groups: ['Mixtape'],
-        });
+        if (String(url).includes('/api/reveal')) return json({ ok: true, path: '/x' });
+        return json(page);
       })
     );
     const onRequeued = vi.fn();
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <LibraryView onRequeued={onRequeued} />
-      </QueryClientProvider>
-    );
+    renderLibrary(onRequeued);
     expect(await screen.findByText('A Song')).toBeInTheDocument();
     expect(screen.getByText('2 downloads')).toBeInTheDocument();
-    expect(screen.getByText(/Mixtape · #3/)).toBeInTheDocument();
+    expect(screen.getByText(/#3/)).toBeInTheDocument();
     expect(screen.getByText('On disk')).toBeInTheDocument();
     expect(screen.getByText('Missing')).toBeInTheDocument();
     expect(screen.getByText(/File missing — was Gone.mp3/)).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Show file' })).toHaveLength(1); // only for files on disk
+    expect(screen.getAllByRole('button', { name: 'Show file' })).toHaveLength(1); // on disk only
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Download again' })[1]);
     await vi.waitFor(() => expect(onRequeued).toHaveBeenCalled());
@@ -87,9 +88,22 @@ describe('LibraryView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'A Song' }));
     await vi.waitFor(() => expect(calls).toContain('POST /api/items/i1/open'));
     expect(screen.queryByRole('button', { name: 'Gone' })).not.toBeInTheDocument();
+
+    // The playlist name in a row narrows the list to that playlist; its folder can be opened.
+    fireEvent.click(screen.getByTitle('Show this playlist'));
+    await vi.waitFor(() =>
+      expect(calls.some((c) => c.includes('/api/library?') && c.includes('group=Mixtape'))).toBe(
+        true
+      )
+    );
+    expect(await screen.findByText(/in “Mixtape”/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open folder' }));
+    await vi.waitFor(() => expect(calls).toContain('POST /api/reveal'));
+    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+    await vi.waitFor(() => expect(screen.queryByText(/in “Mixtape”/)).not.toBeInTheDocument());
   });
 
-  it('moves and removes selected downloads', async () => {
+  it('adds selected downloads to a playlist and removes them', async () => {
     const calls: { method: string; url: string; body?: unknown }[] = [];
     vi.stubGlobal('confirm', () => true);
     vi.stubGlobal(
@@ -108,30 +122,22 @@ describe('LibraryView', () => {
             group: 'Road trip',
           });
         if (entry.url.includes('/api/library/remove')) return json({ ok: true, removed: 2 });
-        return json({
-          items: [item({}), item({ id: 'i2', title: 'Gone', exists: false, collection: null })],
-          total: 2,
-          offset: 0,
-          groups: ['Mixtape'],
-        });
+        return json(page);
       })
     );
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <LibraryView onRequeued={() => {}} />
-      </QueryClientProvider>
-    );
+    renderLibrary();
     await screen.findByText('A Song');
     fireEvent.click(screen.getByLabelText('Select all'));
     expect(screen.getByText('2 selected')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Move to folder…' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Mixtape' })); // an existing group fills the name
-    expect(screen.getByLabelText('Folder name')).toHaveValue('Mixtape');
-    fireEvent.change(screen.getByLabelText('Folder name'), { target: { value: 'Road trip' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Move' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add to playlist…' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Mixtape' })); // existing playlist
+    expect(screen.getByLabelText('Playlist name')).toHaveValue('Mixtape');
+    fireEvent.change(screen.getByLabelText('Playlist name'), { target: { value: 'Road trip' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     expect(
-      await screen.findByText(/Moved 1 into “Road trip”\. Skipped 1: Gone \(file missing\)\./)
+      await screen.findByText(/Added 1 to “Road trip”\. Skipped 1: Gone \(file missing\)\./)
     ).toBeInTheDocument();
     expect(calls.find((c) => c.url.includes('/api/library/move'))?.body).toEqual({
       item_ids: ['i1', 'i2'],

@@ -21,16 +21,27 @@ import Modal from './Modal';
 
 const PAGE = 100;
 
+function playlistChip(active: boolean): string {
+  return `rounded-full border px-3 py-1 text-sm font-medium ${
+    active
+      ? 'border-blue-600 bg-blue-600 text-white'
+      : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+  }`;
+}
+
 function LibraryRow({
   item,
   selected,
   onSelect,
   onRequeued,
+  onPlaylist,
 }: {
   item: LibraryItem;
   selected: boolean;
   onSelect: (on: boolean) => void;
   onRequeued: () => void;
+  /** Show this row's playlist on its own. */
+  onPlaylist: (name: string) => void;
 }) {
   const queryClient = useQueryClient();
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['library'] });
@@ -42,7 +53,7 @@ function LibraryRow({
     },
   });
   const forget = useMutation({ mutationFn: forgetDownload, onSuccess: refresh });
-  const show = useMutation({ mutationFn: reveal });
+  const show = useMutation({ mutationFn: (id: string) => reveal(id) });
   const open = useOpenFile(refresh); // a failed open usually means the file has gone: re-check
   const title = item.title ?? item.url;
   const onOpen = item.exists ? () => open.mutate(item.id) : undefined;
@@ -55,13 +66,16 @@ function LibraryRow({
     options: item.options,
     items: [],
   });
-  const meta = [
-    what,
-    item.collection
-      ? `${item.collection}${item.collection_index ? ` · #${item.collection_index}` : ''}`
-      : null,
+  const facts = [
     item.duration ? formatDuration(item.duration) : null,
     item.finished_at ? formatWhen(item.finished_at) : null,
+  ].filter(Boolean);
+  const metaText = [
+    what,
+    item.collection
+      ? `${item.collection}${item.collection_index ? ` #${item.collection_index}` : ''}`
+      : null,
+    ...facts,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -78,10 +92,27 @@ function LibraryRow({
       <Thumbnail src={item.thumbnail} title={title} onOpen={onOpen} />
       <div className="min-w-0 flex-1">
         <Title text={title} onOpen={onOpen} />
-        <p className="truncate text-sm text-slate-600" title={meta}>
-          {meta}
+        <p className="flex items-center gap-2 text-sm text-slate-600">
+          <span className="min-w-0 truncate" title={metaText}>
+            {what}
+            {item.collection && (
+              <>
+                {' · '}
+                <button
+                  type="button"
+                  onClick={() => onPlaylist(item.collection!)}
+                  title="Show this playlist"
+                  className="text-blue-700 hover:underline"
+                >
+                  {item.collection}
+                </button>
+                {item.collection_index ? ` #${item.collection_index}` : ''}
+              </>
+            )}
+            {facts.map((f) => ` · ${f}`).join('')}
+          </span>
           <span
-            className={`ml-2 rounded-full px-1.5 py-px text-[11px] font-semibold ${
+            className={`shrink-0 rounded-full px-1.5 py-px text-[11px] font-semibold ${
               item.exists ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
             }`}
           >
@@ -127,37 +158,37 @@ function LibraryRow({
   );
 }
 
-function MoveDialog({
+function PlaylistDialog({
   count,
-  groups,
+  playlists,
   busy,
   error,
-  onMove,
+  onAdd,
   onClose,
 }: {
   count: number;
-  groups: string[];
+  playlists: string[];
   busy: boolean;
   error: string | null;
-  onMove: (group: string) => void;
+  onAdd: (name: string) => void;
   onClose: () => void;
 }) {
   const [name, setName] = useState('');
   return (
     <Modal
-      title={`Move ${count} ${count === 1 ? 'download' : 'downloads'} into a folder`}
+      title={`Add ${count} ${count === 1 ? 'download' : 'downloads'} to a playlist`}
       onClose={onClose}
     >
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          onMove(name.trim());
+          onAdd(name.trim());
         }}
         className="space-y-4"
       >
         <div className="space-y-2">
           <label htmlFor="group" className="block text-sm font-medium text-slate-700">
-            Folder name
+            Playlist name
           </label>
           <input
             id="group"
@@ -167,9 +198,9 @@ function MoveDialog({
             className={inputClass}
             autoFocus
           />
-          {groups.length > 0 && (
+          {playlists.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              {groups.map((g) => (
+              {playlists.map((g) => (
                 <button
                   type="button"
                   key={g}
@@ -182,9 +213,9 @@ function MoveDialog({
             </div>
           )}
           <p className="text-xs text-slate-500">
-            The files move into a folder with that name inside your downloads folder, and “Download
-            again” will put them there too. Leave the name blank to move them back to the main
-            folder. Files that have gone missing are skipped.
+            Each playlist is a folder inside your downloads folder: the files move there, and
+            “Download again” puts them there too. Leave the name blank to take them out of any
+            playlist, back to the main folder. Files that have gone missing are skipped.
           </p>
         </div>
         {error && (
@@ -205,7 +236,7 @@ function MoveDialog({
             disabled={busy}
             className="rounded-md bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
           >
-            {busy ? 'Moving…' : 'Move'}
+            {busy ? 'Adding…' : 'Add'}
           </button>
         </div>
       </form>
@@ -218,14 +249,22 @@ export default function LibraryView({ onRequeued }: { onRequeued: () => void }) 
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(PAGE);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [moving, setMoving] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [playlist, setPlaylist] = useState<string | null>(null); // null = everything
   const library = useQuery({
-    queryKey: ['library', query, limit],
-    queryFn: () => getLibrary(query, 0, limit),
+    queryKey: ['library', query, limit, playlist],
+    queryFn: () => getLibrary(query, 0, limit, playlist),
     placeholderData: (previous) => previous,
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['library'] });
+  const openFolder = useMutation({ mutationFn: (name: string) => reveal(undefined, name) });
+  const playlists = library.data?.groups ?? [];
+  const showPlaylist = (name: string | null) => {
+    setPlaylist(name);
+    setSelected(new Set());
+    setLimit(PAGE);
+  };
 
   const items = library.data?.items ?? [];
   const chosen = items.filter((i) => selected.has(i.id)); // only rows still listed count
@@ -244,7 +283,7 @@ export default function LibraryView({ onRequeued }: { onRequeued: () => void }) 
     onSuccess: (data) => {
       setNotice(describeMove(data));
       setSelected(new Set());
-      setMoving(false);
+      setAdding(false);
       void refresh();
     },
   });
@@ -257,6 +296,9 @@ export default function LibraryView({ onRequeued }: { onRequeued: () => void }) 
       return next;
     });
 
+  // Chips: every known playlist, plus the current one even if the search hides its rows.
+  const chips = [...new Set([...playlists, ...(playlist === null ? [] : [playlist])])];
+
   return (
     <section className="space-y-4 rounded-xl bg-white p-5 shadow-md sm:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -265,6 +307,7 @@ export default function LibraryView({ onRequeued }: { onRequeued: () => void }) 
           <span className="text-sm text-slate-500">
             {library.data.total} {library.data.total === 1 ? 'download' : 'downloads'}
             {query ? ' matching' : ''}
+            {playlist !== null ? ` in “${playlist}”` : ''}
           </span>
         )}
       </div>
@@ -275,10 +318,38 @@ export default function LibraryView({ onRequeued }: { onRequeued: () => void }) 
           setQuery(e.target.value);
           setLimit(PAGE);
         }}
-        placeholder="Search titles, albums, links…"
+        placeholder="Search titles, playlists, links…"
         className={inputClass}
         aria-label="Search the library"
       />
+      {chips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2" aria-label="Playlists">
+          <button
+            type="button"
+            onClick={() => showPlaylist(null)}
+            className={playlistChip(playlist === null)}
+          >
+            All
+          </button>
+          {chips.map((name) => (
+            <button
+              type="button"
+              key={name}
+              onClick={() => showPlaylist(name)}
+              className={playlistChip(playlist === name)}
+            >
+              {name}
+            </button>
+          ))}
+          {playlist !== null && (
+            <IconButton
+              icon={FolderOpen}
+              label="Open folder"
+              onClick={() => openFolder.mutate(playlist)}
+            />
+          )}
+        </div>
+      )}
       {items.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label className="flex items-center gap-2 text-sm text-slate-700">
@@ -300,9 +371,9 @@ export default function LibraryView({ onRequeued }: { onRequeued: () => void }) 
             <div className="flex flex-wrap gap-2">
               <ActionButton
                 icon={FolderInput}
-                label="Move to folder…"
+                label="Add to playlist…"
                 tone="primary"
-                onClick={() => setMoving(true)}
+                onClick={() => setAdding(true)}
               />
               <ActionButton
                 icon={Trash2}
@@ -349,7 +420,7 @@ export default function LibraryView({ onRequeued }: { onRequeued: () => void }) 
         </p>
       ) : items.length === 0 ? (
         <p className="text-center text-slate-500">
-          {query ? 'Nothing matches that.' : 'Nothing downloaded yet.'}
+          {query || playlist !== null ? 'Nothing matches that.' : 'Nothing downloaded yet.'}
         </p>
       ) : (
         <>
@@ -361,6 +432,7 @@ export default function LibraryView({ onRequeued }: { onRequeued: () => void }) 
                 selected={selected.has(item.id)}
                 onSelect={(on) => toggle(item.id, on)}
                 onRequeued={onRequeued}
+                onPlaylist={showPlaylist}
               />
             ))}
           </ul>
@@ -375,14 +447,14 @@ export default function LibraryView({ onRequeued }: { onRequeued: () => void }) 
           )}
         </>
       )}
-      {moving && (
-        <MoveDialog
+      {adding && (
+        <PlaylistDialog
           count={chosen.length}
-          groups={library.data?.groups ?? []}
+          playlists={playlists}
           busy={move.isPending}
           error={move.error?.message ?? null}
-          onMove={(group) => move.mutate({ ids: chosen.map((i) => i.id), group })}
-          onClose={() => setMoving(false)}
+          onAdd={(group) => move.mutate({ ids: chosen.map((i) => i.id), group })}
+          onClose={() => setAdding(false)}
         />
       )}
     </section>
