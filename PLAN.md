@@ -1,6 +1,7 @@
 # Plan — Media Downloader (for Dad)
 
-Status: **v0.5.0 (2026-09-09): the Library.** Dad reported v0.4.1 "works" on Windows. Phase 5 to-do list
+Status: **v0.5.1 (2026-09-09): the Library; bundle slimmed (QuickJS-ng for Deno, no ffprobe), verified on the Mac and
+the Windows PC.** Dad reported v0.4.1 "works" on Windows. Phase 5 to-do list
 reviewed and reordered 2026-09-09 — small fixes first (Safari-cookies hint, one language setting, WAV/AIFF,
 Settings modal, Help), then folder default, Library polish, playback, an app window.
 
@@ -193,6 +194,8 @@ To do, roughly in order of value for effort (list reviewed with Adam 2026-09-09)
          quickjs:<path>` (needs quickjs-ng ≥ 0.12; binaries 1–3 MB, the Linux one static). Measured on the Intel
          Mac: a YouTube probe takes 11.5 s vs 7.2 s with Deno, so ~4 s more per YouTube item (the download reuses
          the probe via `--load-info-json`, no second solve). Windows arm64 gets the x86_64 exe (no native build).
+         **Verified on the Windows 11 PC 2026-09-09:** no Defender prompt for `qjs.exe`; YouTube video + MP3 and a
+         Bandcamp album downloaded with cover art; the "Converting audio" stage now shows (the stderr fix).
       3. **yt-dlp as a library, not its own exe (≈ −105 MB on macOS, less on Windows).** Run `yt_dlp` inside our
          Python in a subprocess (the frozen app re-invokes itself with a flag); self-update by fetching the
          `yt-dlp` + `yt-dlp-ejs` wheels from PyPI into the app-data dir (a wheel is a zip; no pip needed) and
