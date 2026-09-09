@@ -1,6 +1,8 @@
 # Plan — Media Downloader (for Dad)
 
-Status: **v0.5.0 (2026-09-09): the Library.** Dad reported v0.4.1 "works" on Windows. Phase 5 continues as wanted: trim/clip, icon, notarization, AppImage, playlist-or-video prompt.
+Status: **v0.5.0 (2026-09-09): the Library.** Dad reported v0.4.1 "works" on Windows. Phase 5 to-do list
+reviewed and reordered 2026-09-09 — small fixes first (Safari-cookies hint, one language setting, WAV/AIFF,
+Settings modal, Help), then folder default, Library polish, playback, an app window.
 
 ## Goal
 
@@ -22,7 +24,9 @@ Primary user: Adam's dad. Audio quality matters; often audio-only (MP3) is all t
   Unsigned for now → one-time "Run anyway" / right-click Open.
 - **yt-dlp via the official executable** (subprocess, `-J` for info, `--progress-template` for JSON
   progress), **self-updated with `yt-dlp -U` on every launch** so YouTube churn never needs an app release.
-  Bundled binaries: `yt-dlp`, static `ffmpeg`, `deno` (yt-dlp's recommended JS runtime for YouTube challenges).
+  Bundled binaries: `yt-dlp`, static `ffmpeg`, and a JavaScript runtime for YouTube's challenges — `deno` until
+  2026-09-09, now `qjs` (QuickJS-ng, 2 MB vs 93 MB; ~4 s slower per YouTube link). `ffprobe` dropped the same day
+  (yt-dlp only requires it for things this app never does). See Phase 5 → "Slim the bundle".
   - **Use the *onedir* zip builds (`yt-dlp_macos.zip` etc.), never the single-file executable.** Measured
     2026-09-06 on the Intel Mac: single-file = ~23 s *per launch* (it unpacks ~100 MB every time and macOS
     security-scans the new files); onedir = 23 s once, then 0.7 s. `-U` works on the onedir variant.
@@ -45,6 +49,8 @@ Primary user: Adam's dad. Audio quality matters; often audio-only (MP3) is all t
     `--embed-thumbnail` needs `--convert-thumbnails jpg` (YouTube serves webp); missing subtitles don't fail.
   - **Vimeo** (checked 2026-09-06): every yt-dlp client needs a login now — public videos included — so
     Vimeo support means browser cookies. Bandcamp and YouTube work anonymously.
+  - **yt-dlp prints the `postprocess` progress template to stderr** (found 2026-09-09, 2026.08.19), the
+    `download` one to stdout. The wrapper reads both, else "Converting audio" / "Adding cover art" never show.
   - **Processes run via plain `subprocess` in worker threads, not asyncio subprocesses.** On Windows,
     uvicorn `--reload` uses a SelectorEventLoop, which can't spawn processes (found on the Windows 11 box,
     2026-09-06). Threads work on every loop; progress callbacks are marshalled back onto the loop.
@@ -145,16 +151,93 @@ Each phase leaves the app working. Tests + CI land in Phase 0 so later phases st
       Defender/SmartScreen quarantine), macOS zip on the Mac after `xattr -cr` (Sequoia's Open Anyway didn't work)
 
 ### Phase 5 — Later
-- [x] **Library (done 2026-09-09, v0.5.0):** a page listing everything ever downloaded, from `jobs.sqlite3`
+
+Done:
+- [x] **Library (2026-09-09, v0.5.0):** a page listing everything ever downloaded, from `jobs.sqlite3`
   — title, thumbnail, site, format/quality, when, and whether the file is still where it was put (moved/deleted
   files shown as such, not hidden). Actions: open file / show in folder when present, **Download again** (re-queue
   the same URL with the same options — the whole point when a file has gone), remove from history. Search by title.
   Cheap because the data is all there already: `items.file_path` + `os.path.exists`, and jobs know their options.
+
+To do, roughly in order of value for effort (list reviewed with Adam 2026-09-09):
+
+**Small — an afternoon or less each**
+- [ ] **Safari cookies on macOS need Full Disk Access.** Adam's Vimeo attempt with "Use cookies from: Safari"
+      failed with `[Errno 1] Operation not permitted: ~/Library/Cookies/Cookies.binarycookies` — macOS privacy
+      (TCC) blocking the app — and the hint wrongly said "set Use cookies from in Settings". Recognise that
+      message and say so plainly: "macOS is blocking Safari's cookies. System Settings → Privacy & Security →
+      Full Disk Access → add Media Downloader (or Terminal when running from source), then try again. Firefox
+      and Chrome don't need this." Also in Help and the README.
+- [ ] **One language for dubbed audio and subtitles.** Settings gets a single "Language" (used for YouTube's
+      dubbed audio *and* subtitles); the form keeps only the subtitles checkbox, whose text reads "Include
+      <Language> subtitles when the video has them" from that setting. "Original (as uploaded)" → subtitles in the video's own language (`info["language"]`, else
+      English). `subtitle_args()` takes the language; the worker passes `settings.audio_language` (key can stay).
+- [ ] **WAV and AIFF audio.** WAV is a plain `--audio-format wav`; AIFF isn't in `-x`'s list (checked on yt-dlp
+      2026.08.19) but is in `--remux-video`/`--recode-video`, so `-f bestaudio --recode-video aiff`. Label
+      honestly: uncompressed, for editing, ~10× the size, no better than the original. yt-dlp's thumbnail
+      embedder refuses both containers, so `tag_args` must skip `--embed-thumbnail` for them; check what
+      `--embed-metadata` writes (WAV: basic INFO tags; AIFF: ID3).
+- [ ] **Settings as a modal** (`<dialog>`) opened from the header; the same mechanism serves Help.
+- [ ] **Help button** → in-app guide: pasting links, Audio vs Video, where files go, signing in (cookies, the
+      macOS Full Disk Access step), updating the engine, when things go wrong. Mostly the README and
+      release-notes text reworded for Dad.
+
+- [ ] **Slim the bundle** (430 MB installed on macOS; downloads 139 MB Windows / 169 MB macOS / 235 MB Linux).
+      Measured 2026-09-09 on the Mac: deno 93 MB, yt-dlp onedir 124 MB (its own Python 3.14 framework, universal2,
+      plus curl_cffi/OpenSSL), ffmpeg 77 MB, ffprobe 77 MB, our Python + app ≈ 60 MB. Steps, cheapest first:
+      1. [x] **Drop ffprobe (−77 MB) — done 2026-09-09.** yt-dlp only *requires* it for things we never do
+         (concat, HLS fixup, embedding info-json, thumbnails in MKV — we always merge to MP4 — and the third-choice
+         thumbnail method for m4a after mutagen); codec detection falls back to `ffmpeg -i`. The one reachable
+         path (a last chapter with no end time → ffprobe for the duration) is closed by `ytdlp.complete_chapters`.
+      2. [x] **QuickJS-ng instead of Deno (−91 MB) — done 2026-09-09.** `--no-js-runtimes --js-runtimes
+         quickjs:<path>` (needs quickjs-ng ≥ 0.12; binaries 1–3 MB, the Linux one static). Measured on the Intel
+         Mac: a YouTube probe takes 11.5 s vs 7.2 s with Deno, so ~4 s more per YouTube item (the download reuses
+         the probe via `--load-info-json`, no second solve). Windows arm64 gets the x86_64 exe (no native build).
+      3. **yt-dlp as a library, not its own exe (≈ −105 MB on macOS, less on Windows).** Run `yt_dlp` inside our
+         Python in a subprocess (the frozen app re-invokes itself with a flag); self-update by fetching the
+         `yt-dlp` + `yt-dlp-ejs` wheels from PyPI into the app-data dir (a wheel is a zip; no pip needed) and
+         putting that dir first on `sys.path`. Needs mutagen (+ pycryptodomex) in our bundle. Bonus: far fewer
+         files for macOS to scan on first launch. Replaces the `-U` mechanism — medium.
+      4. **A minimal ffmpeg (~10 MB instead of 77).** We only mux (mp4/mkv/webm), encode MP3 (lame), AAC and
+         PCM, and convert thumbnails; a custom `--disable-everything` build per platform in CI is the most work
+         of the lot. Middle options: BtbN's lgpl build (smaller, unmeasured) or imageio-ffmpeg's 25–31 MB
+         static binaries (MP3 encoder presence unverified).
+      5. Small stuff: `uvicorn` without `[standard]` (uvloop, watchfiles, websockets… ≈ 8 MB), `tar.xz` for
+         the Linux download, PyInstaller excludes.
+      After 1+2 (2026-09-09): `bin/` is 202 MB on macOS, was 371 — the app should land near 260 MB (release
+      build not yet measured). Floors: 1–3 ≈ 155 MB; all five ≈ 80 MB. A 40 MB installer that fetches the tools on first
+      run is also possible (the fetch script already exists) but cuts only the download, not disk.
+
+**Medium — a day or two each**
+- [ ] **First-run setup instead of a silent default folder** (Adam, 2026-09-09: don't assume Music or any other
+      folder). When no settings are stored yet, show a one-time setup: the download folder (pre-filled with
+      `Downloads/Media Downloader`, with a note that Windows Storage Sense / macOS can auto-clean Downloads) and
+      the language. Saving writes both, so later default changes never move anyone. No country setting: geo-blocks
+      are by IP address, yt-dlp's country flag only fakes a header YouTube ignores, and dubbed audio and subtitles
+      are keyed by language.
+- [ ] **Library polish.** Icons (`lucide-react`, tree-shaken) *with* short labels — icons alone are a gamble for
+      a non-technical user; multi-select with checkboxes → "Remove selected" (batch endpoint); "Move selected
+      into a folder" = a user-made group: moves the files under `<output>/<group>/` and sets `collection` on the
+      items so *Download again* lands there too (`destination()` already does that). Never overwrite; skip missing
+      files with a message. Same icon set on the jobs board.
+- [ ] **"Open" in the Library** launches the file in the OS default player (`open` / `os.startfile` /
+      `xdg-open`) — one line; Adam: enough for now. An in-app player (`GET /api/library/{id}/file`, Starlette 1.6
+      `FileResponse` handles Range requests, behind `<video>`/`<audio>`) stays optional; note `.opus` and the
+      vp9/av1 MP4s from 1440p/2160p may not play in Safari.
+- [ ] **A window instead of a browser tab.** Cheapest: Chromium "app mode" — launch Edge (always present on
+      Windows), Chrome or Chromium with `--app=<launch URL>` when one is installed, else the default browser as
+      now. No tabs or address bar, own taskbar entry, zero new dependencies. Next step up: pywebview (native
+      WKWebView / WebView2; Linux needs system webkit2gtk, so keep the browser fallback there). Tauri (listed
+      before) would replace the launcher and packaging — not worth it. A window changes nothing about cookies:
+      `--cookies-from-browser` reads the user's real browser. The real cookie fix, if Safari/Chrome keep biting,
+      is an in-app "Sign in to Vimeo" webview that exports its cookies to a `cookies.txt` for yt-dlp — needs
+      pywebview.
+
+**Unchanged from before**
 - Linux AppImage (needs libfuse2 on the user's machine; tar.gz ships first)
 - App icon (.icns / .ico) and a signed macOS build (Developer ID, US$99/yr) if the right-click-Open dance bothers anyone
 - Trim/clip ranges (`--download-sections`)
 - `MODE=hosted`: auth, Library + retention, rate limits, Docker with ffmpeg + deno
-- Native window + signed auto-updater via Tauri
 - Pre-probe preview in the form ("Check link" from Phase 0) if Dad wants to confirm before queueing
 - `watch?v=X&list=Y` links: offer "just this video / the whole playlist" instead of always taking the video
 - Channel links (`/@name`): accept as a capped playlist
@@ -171,7 +254,7 @@ Each phase leaves the app working. Tests + CI land in Phase 0 so later phases st
 - **First launch after install or a yt-dlp update takes ~20-30 s on macOS only** (Gatekeeper scanning the new
   binaries; Windows 11 measured as "not long", 2026-09-06). The macOS build should show a "first-time setup"
   message rather than look hung; Windows/Linux need nothing.
-- **YouTube churn** — mitigated by yt-dlp self-update + Deno; still expect occasional breakage. Clear in-app error + update button.
+- **YouTube churn** — mitigated by yt-dlp self-update + a bundled JS runtime (QuickJS-ng); still expect occasional breakage. Clear in-app error + update button.
 - **Unsigned binaries** — one-time OS warnings; document. Apple signing (US$99/yr) optional later.
 - **AV false positives** on `yt-dlp.exe` / PyInstaller output on Windows — `onedir` reduces; document.
 - **Local API exposure** — token + Origin guard from day one of Phase 4.
