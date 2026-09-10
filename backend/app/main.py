@@ -1,4 +1,4 @@
-"""Media Downloader API: a download queue with progress, writing files to a folder.
+"""UsefulMedia API: a download queue with progress, writing files to a folder.
 
 Phase 1. Jobs are submitted with one or more URLs and shared options; a background worker
 (see worker.py) processes the items. The UI polls /api/jobs.
@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
-from app import __version__, desktop, formats, links, updates, ytdlp
+from app import __version__, desktop, formats, links, paths, updates, ytdlp
 from app.paths import data_dir
 from app.store import ACTIVE, DONE, RUNNING, NewItem, Store
 from app.worker import MAX_CONCURRENCY, Manager, current_settings, move_into, safe_name
@@ -40,10 +40,13 @@ async def _desktop_startup(app: FastAPI, manager: Manager) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     store = Store(data_dir() / "jobs.sqlite3")
+    if store.get_setting("output_dir") is None and paths.legacy_output_dir().is_dir():
+        # Downloads went to Downloads/Media Downloader before v0.7.0; a rename moves nobody.
+        store.set_setting("output_dir", str(paths.legacy_output_dir()))
     manager = Manager(store)
     app.state.store, app.state.manager = store, manager
-    app.state.token = os.environ.get("MD_TOKEN") or None
-    app.state.desktop = os.environ.get("MD_DESKTOP") == "1"
+    app.state.token = os.environ.get("USEFULMEDIA_TOKEN") or None
+    app.state.desktop = os.environ.get("USEFULMEDIA_DESKTOP") == "1"
     app.state.ytdlp_update = {"state": "idle", "message": ""}
     app.state.app_update = None
     app.state.quit_requested = False
@@ -64,7 +67,8 @@ async def lifespan(app: FastAPI):
         store.close()
 
 
-app = FastAPI(title="Media Downloader", version=__version__, lifespan=lifespan)
+app = FastAPI(title="UsefulMedia", version=__version__, lifespan=lifespan)
+COOKIE = "usefulmedia_token"
 
 
 @app.middleware("http")
@@ -73,19 +77,19 @@ async def require_launch_token(request: Request, call_next):
     token = getattr(request.app.state, "token", None)
     path = request.url.path
     if token and path.startswith("/api/") and path != "/api/health":
-        supplied = request.cookies.get("md_token") or request.headers.get("x-md-token")
+        supplied = request.cookies.get(COOKIE) or request.headers.get("x-usefulmedia-token")
         if supplied != token:
             return JSONResponse(
                 status_code=401,
                 content={
                     "detail": "This tab isn't connected to the app"
-                    " - open Media Downloader from its icon."
+                    " - open UsefulMedia from its icon."
                 },
             )
     return await call_next(request)
 
 
-_origins = os.environ.get("MD_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+_origins = os.environ.get("USEFULMEDIA_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _origins.split(",") if o.strip()],
@@ -184,9 +188,7 @@ async def launch(token: str, request: Request) -> RedirectResponse:
     if not request.app.state.token or token != request.app.state.token:
         raise HTTPException(403, "Wrong launch token")
     response = RedirectResponse("/", status_code=303)
-    response.set_cookie(
-        "md_token", token, httponly=True, samesite="strict", max_age=365 * 24 * 3600
-    )
+    response.set_cookie(COOKIE, token, httponly=True, samesite="strict", max_age=365 * 24 * 3600)
     return response
 
 

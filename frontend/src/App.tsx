@@ -22,7 +22,7 @@ export default function App() {
   return (
     <main className="mx-auto w-full max-w-3xl space-y-5 p-4 sm:p-6">
       <header className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Media Downloader</h1>
+        <h1 className="text-3xl font-bold">UsefulMedia</h1>
         <div className="flex gap-2">
           <button type="button" onClick={() => setPanel('settings')} className={headerButton}>
             Settings

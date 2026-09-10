@@ -174,7 +174,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
       <Field
         id="cookies"
         label="Use cookies from"
-        note="Only for videos that need a sign-in — Vimeo, private or members-only. Pick a browser you’re signed in with; Firefox works best. Safari needs Media Downloader allowed under System Settings → Privacy & Security → Full Disk Access. Chrome on Windows often won’t share its cookies."
+        note="Only for videos that need a sign-in — Vimeo, private or members-only. Pick a browser you’re signed in with; Firefox works best. Safari needs UsefulMedia allowed under System Settings → Privacy & Security → Full Disk Access. Chrome on Windows often won’t share its cookies."
       >
         <select
           id="cookies"

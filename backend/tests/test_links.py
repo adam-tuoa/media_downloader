@@ -77,7 +77,7 @@ def test_unsupported_and_garbage(monkeypatch):
         links.parse("hello world")
     with pytest.raises(links.LinkError, match="Empty"):
         links.parse("   ")
-    monkeypatch.setenv("MD_ALLOW_ANY_SITE", "1")
+    monkeypatch.setenv("USEFULMEDIA_ALLOW_ANY_SITE", "1")
     other = links.parse("https://soundcloud.com/forss/flickermood?utm_source=x&si=1")
     assert other == links.Link("https://soundcloud.com/forss/flickermood", "other", "unknown")
 

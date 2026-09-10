@@ -48,8 +48,8 @@ class Link:
 
 
 def allow_any_site() -> bool:
-    """Escape hatch for Adam's own use: MD_ALLOW_ANY_SITE=1 lets yt-dlp try any site."""
-    return os.environ.get("MD_ALLOW_ANY_SITE") == "1"
+    """Escape hatch for Adam's own use: USEFULMEDIA_ALLOW_ANY_SITE=1 lets yt-dlp try any site."""
+    return os.environ.get("USEFULMEDIA_ALLOW_ANY_SITE") == "1"
 
 
 def supported_sites() -> str:
@@ -161,7 +161,7 @@ _HINTS = (
     (
         "cookies.binarycookies",  # macOS privacy (TCC) blocking Safari's cookie file
         "macOS is blocking Safari's cookies. In System Settings → Privacy & Security → Full Disk"
-        " Access, switch on Media Downloader (or Terminal, when running from source), then try"
+        " Access, switch on UsefulMedia (or Terminal, when running from source), then try"
         " again. Firefox and Chrome don't need this.",
     ),
     # Specific messages first: several of them also mention "cookies".

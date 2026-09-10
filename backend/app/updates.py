@@ -12,7 +12,7 @@ import certifi
 
 log = logging.getLogger(__name__)
 
-RELEASES_REPO = "adam-tuoa/media_downloader"
+RELEASES_REPO = "tuoa-tools/usefulmedia"
 LATEST_URL = f"https://api.github.com/repos/{RELEASES_REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{RELEASES_REPO}/releases/latest"
 
@@ -30,7 +30,7 @@ def check_latest(current: str, timeout: float = 5.0) -> dict | None:
     """{"latest": "0.5.0", "url": ...} when a newer release exists, else None."""
     try:
         request = urllib.request.Request(
-            LATEST_URL, headers={"User-Agent": f"media-downloader/{current}"}
+            LATEST_URL, headers={"User-Agent": f"usefulmedia/{current}"}
         )
         # Frozen builds have no system CA bundle on the Python side; certifi ships one.
         context = ssl.create_default_context(cafile=certifi.where())

@@ -5,8 +5,8 @@ PyInstaller re-signs and rewrites executables it collects as data; yt-dlp's exec
 PyInstaller app) does not survive that. So the bundle is built without bin/, and this script
 drops the pristine directory into the place the app looks (see ytdlp._default_bin_dir):
 
-  Linux/Windows onedir:  dist/MediaDownloader/_internal/bin
-  macOS .app:            dist/Media Downloader.app/Contents/Resources/bin
+  Linux/Windows onedir:  dist/UsefulMedia/_internal/bin
+  macOS .app:            dist/UsefulMedia.app/Contents/Resources/bin
 
 On macOS the copy must go under Resources, not Frameworks: codesign treats dotted directory
 names (yt-dlp's *.dist-info) under Frameworks as broken nested bundles. Afterwards the unsigned
@@ -14,7 +14,7 @@ tools (ffmpeg, qjs) get an ad-hoc signature and the whole app is re-signed, othe
 quarantined download shows Gatekeeper's "damaged and can't be opened" instead of the usual
 right-click -> Open path.
 
-Run after `pyinstaller packaging/MediaDownloader.spec`:  python scripts/bundle_binaries.py
+Run after `pyinstaller packaging/UsefulMedia.spec`:  python scripts/bundle_binaries.py
 """
 
 from __future__ import annotations
@@ -39,9 +39,9 @@ MACHO_MAGIC = {
 def targets() -> list[tuple[Path, Path | None]]:
     """(destination bin dir, .app bundle or None) for everything PyInstaller produced."""
     found: list[tuple[Path, Path | None]] = []
-    if (DIST / "MediaDownloader" / "_internal").is_dir():
-        found.append((DIST / "MediaDownloader" / "_internal" / "bin", None))
-    app = DIST / "Media Downloader.app"
+    if (DIST / "UsefulMedia" / "_internal").is_dir():
+        found.append((DIST / "UsefulMedia" / "_internal" / "bin", None))
+    app = DIST / "UsefulMedia.app"
     if app.is_dir():
         found.append((app / "Contents" / "Resources" / "bin", app))
     return found

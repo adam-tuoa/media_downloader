@@ -1,14 +1,15 @@
-# Media Downloader
+# UsefulMedia
 
 A small, friendly desktop downloader for YouTube, Vimeo and Bandcamp, built on
-[yt-dlp](https://github.com/yt-dlp/yt-dlp). Paste links — videos, playlists, albums — pick
+[yt-dlp](https://github.com/yt-dlp/yt-dlp). One of the "Useful" family of tools, alongside
+[UsefulText](https://github.com/tuoa-tools/usefultext). Paste links — videos, playlists, albums — pick
 **Video** at a quality or **Audio** in the format you like, and the files land in a folder with
 cover art and tags. See [PLAN.md](PLAN.md) for the decisions and what's done.
 
 This is for personal use. Please respect the terms of the sites you download from and the
 rights of the people who made the videos and music.
 
-**Status:** v0.6.1 — a desktop app for Windows, macOS and Linux. Paste links (videos,
+**Status:** v0.7.0 — a desktop app for Windows, macOS and Linux. Paste links (videos,
 playlists, albums), pick the entries you want, choose Video (quality, optional subtitles in your
 language) or Audio (MP3 / M4A / best original / WAV / AIFF), watch per-item progress; files land in
 a folder of your choice with cover art and tags, albums and playlists in their own numbered folders.
@@ -19,11 +20,11 @@ short in-app Help open as dialogs. Sites: YouTube, Vimeo, Bandcamp.
 ## Install (the desktop app)
 
 Grab the file for your computer from the
-[downloads page](https://github.com/adam-tuoa/media_downloader/releases/latest) — a Windows
+[downloads page](https://github.com/tuoa-tools/usefulmedia/releases/latest) — a Windows
 installer, a macOS zip or a Linux tar.gz — and follow the three-line instructions there. The app opens in
 your browser; **Quit** stops it. It updates its downloader engine (yt-dlp) on every launch and
 tells you when a new app version exists. Windows shows SmartScreen's "Run anyway" once; on macOS
-(not notarized) run `xattr -cr "Media Downloader.app"` once before the first launch — Sequoia's
+(not notarized) run `xattr -cr UsefulMedia.app` once before the first launch — Sequoia's
 "Open Anyway" route proved unreliable.
 
 Developer notes on how that build is made are under [Packaging](#packaging).
@@ -62,8 +63,8 @@ winget install Git.Git
 winget install OpenJS.NodeJS.LTS
 py --list                      # needs 3.13 or newer listed
 
-git clone https://github.com/adam-tuoa/media_downloader.git
-cd media_downloader
+git clone https://github.com/tuoa-tools/usefulmedia.git
+cd usefulmedia
 py -3 -m venv .venv
 .venv\Scripts\python -m pip install --upgrade pip
 .venv\Scripts\pip install -e "backend[dev]"
@@ -115,8 +116,8 @@ the UI polls once a second while anything is active. Interrupted items are re-qu
 
 | What | Where |
 |---|---|
-| Jobs database | macOS `~/Library/Application Support/MediaDownloader/`, Windows `%LOCALAPPDATA%\MediaDownloader\`, Linux `~/.local/share/MediaDownloader/` — override with `MD_DATA_DIR` |
-| Downloads (default) | `<your Downloads folder>/Media Downloader/` — change it in Settings |
+| Jobs database | macOS `~/Library/Application Support/UsefulMedia/`, Windows `%LOCALAPPDATA%\UsefulMedia\`, Linux `~/.local/share/UsefulMedia/` — override with `USEFULMEDIA_DATA_DIR`. The first launch of v0.7.0 moves the folder the app used before the rename across, once |
+| Downloads (default) | `<your Downloads folder>/UsefulMedia/` — change it in Settings. An install that downloaded into the pre-0.7.0 default folder keeps using it |
 
 ## Library
 
@@ -179,7 +180,7 @@ Build locally (any OS builds only for itself; CI builds all three):
 (cd frontend && npm run build)             # -> backend/app/static
 .venv/bin/pip install -e "backend[build]"  # adds PyInstaller
 .venv/bin/python scripts/fetch_binaries.py
-.venv/bin/pyinstaller --noconfirm packaging/MediaDownloader.spec   # -> dist/
+.venv/bin/pyinstaller --noconfirm packaging/UsefulMedia.spec   # -> dist/
 .venv/bin/python scripts/bundle_binaries.py   # copies bin/ in untouched (PyInstaller would break yt-dlp)
 ```
 
@@ -191,11 +192,11 @@ and (Intel) macOS bundles and attaches them to a GitHub Release here with the in
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `MD_BIN_DIR` | `backend/bin` | where the helper binaries live |
-| `MD_DATA_DIR` | per-OS app-data folder | where the jobs database lives |
-| `MD_ALLOW_ANY_SITE` | unset | set to `1` to let yt-dlp try any site it supports (drops the allowlist) |
-| `MD_TOKEN` / `MD_DESKTOP` | set by the launcher | launch secret and desktop-mode switch; leave unset in development |
-| `MD_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | dev-server origins allowed to call the API |
+| `USEFULMEDIA_BIN_DIR` | `backend/bin` | where the helper binaries live |
+| `USEFULMEDIA_DATA_DIR` | per-OS app-data folder | where the jobs database lives |
+| `USEFULMEDIA_ALLOW_ANY_SITE` | unset | set to `1` to let yt-dlp try any site it supports (drops the allowlist) |
+| `USEFULMEDIA_TOKEN` / `USEFULMEDIA_DESKTOP` | set by the launcher | launch secret and desktop-mode switch; leave unset in development |
+| `USEFULMEDIA_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | dev-server origins allowed to call the API |
 | `VITE_API_URL` | *(empty)* | backend origin for the UI; empty = same origin / Vite proxy |
 
 ## Notes

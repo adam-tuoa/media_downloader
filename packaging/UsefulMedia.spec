@@ -1,10 +1,12 @@
 # PyInstaller spec: onedir build of the desktop app (backend + built UI + yt-dlp/ffmpeg/qjs).
-# Build from the repo root:  pyinstaller --noconfirm packaging/MediaDownloader.spec
+# Build from the repo root:  pyinstaller --noconfirm packaging/UsefulMedia.spec
 import sys
 from pathlib import Path
 
 ROOT = Path(SPECPATH).resolve().parent
 BACKEND = ROOT / "backend"
+sys.path.insert(0, str(BACKEND))
+from app import __version__  # noqa: E402
 
 a = Analysis(
     [str(BACKEND / "app" / "launcher.py")],
@@ -41,19 +43,27 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="MediaDownloader",
+    name="UsefulMedia",
     debug=False,
     strip=False,
     upx=False,
     console=False,  # windowed: no black terminal window; logs go to app.log
     icon=None,
 )
-coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="MediaDownloader")
+coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="UsefulMedia")
 if sys.platform == "darwin":
     app = BUNDLE(
         coll,
-        name="Media Downloader.app",
+        name="UsefulMedia.app",
         icon=None,
-        bundle_identifier="au.com.tuoa.mediadownloader",
-        info_plist={"NSHighResolutionCapable": True, "LSMinimumSystemVersion": "12.0"},
+        bundle_identifier="au.com.tuoa.usefulmedia",
+        info_plist={
+            "CFBundleName": "UsefulMedia",
+            "CFBundleDisplayName": "UsefulMedia",
+            "CFBundleShortVersionString": __version__,
+            "CFBundleVersion": __version__,
+            "NSHighResolutionCapable": True,
+            "LSMinimumSystemVersion": "12.0",
+            "NSHumanReadableCopyright": "MIT licence · tuoa-tools/usefulmedia",
+        },
     )

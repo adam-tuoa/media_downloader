@@ -20,6 +20,7 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
+from app import paths
 from app.paths import data_dir
 
 log = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ def launch_url(port: int, token: str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Media Downloader")
+    parser = argparse.ArgumentParser(description="UsefulMedia")
     parser.add_argument("--port", type=int, default=0, help="listen port (default: any free one)")
     parser.add_argument("--no-browser", action="store_true", help="don't open a browser tab")
     args = parser.parse_args(argv)
@@ -88,6 +89,8 @@ def main(argv: list[str] | None = None) -> int:
         sys.stderr = sys.stderr or open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
     folder = data_dir()
     setup_logging(folder)
+    if paths.adopted_from:
+        log.info("moved settings, Library and log from %s to %s", paths.adopted_from, folder)
 
     existing = running_instance(folder)
     if existing:
@@ -98,9 +101,9 @@ def main(argv: list[str] | None = None) -> int:
 
     port = args.port or free_port()
     token = secrets.token_urlsafe(32)
-    os.environ["MD_TOKEN"] = token
-    os.environ["MD_DESKTOP"] = "1"
-    os.environ["MD_CORS_ORIGINS"] = f"http://127.0.0.1:{port}"
+    os.environ["USEFULMEDIA_TOKEN"] = token
+    os.environ["USEFULMEDIA_DESKTOP"] = "1"
+    os.environ["USEFULMEDIA_CORS_ORIGINS"] = f"http://127.0.0.1:{port}"
 
     import uvicorn
 
@@ -110,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
     server = uvicorn.Server(config)
     app.state.on_quit = lambda: setattr(server, "should_exit", True)
     instance = write_instance(folder, port, token)
-    log.info("Media Downloader starting on http://127.0.0.1:%s", port)
+    log.info("UsefulMedia starting on http://127.0.0.1:%s", port)
 
     if not args.no_browser:
 

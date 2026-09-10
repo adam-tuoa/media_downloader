@@ -10,7 +10,7 @@ from tests import fakes
 
 @pytest.fixture
 def client(monkeypatch, tmp_path):
-    monkeypatch.setenv("MD_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("USEFULMEDIA_DATA_DIR", str(tmp_path / "data"))
     with TestClient(main.app) as c:
         c.put("/api/settings", json={"output_dir": str(tmp_path / "out")})
         yield c

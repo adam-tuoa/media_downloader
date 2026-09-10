@@ -143,7 +143,7 @@ def test_move_into_never_overwrites(tmp_path):
 def test_current_settings_defaults_and_clamping(tmp_path):
     store = Store(tmp_path / "db.sqlite3")
     s = worker.current_settings(store)
-    assert s.concurrency == 2 and s.output_dir.name == "Media Downloader"
+    assert s.concurrency == 2 and s.output_dir.name == "UsefulMedia"
     store.set_setting("concurrency", "99")
     assert worker.current_settings(store).concurrency == worker.MAX_CONCURRENCY
 

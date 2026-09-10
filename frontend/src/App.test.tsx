@@ -57,7 +57,7 @@ describe('App', () => {
   it('renders the form and an empty board', async () => {
     stubApi(health(false));
     renderApp();
-    expect(screen.getByRole('heading', { name: 'Media Downloader' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'UsefulMedia' })).toBeInTheDocument();
     expect(screen.getByLabelText(/Paste links/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download' })).toBeDisabled();
     expect(await screen.findByText(/Nothing yet/)).toBeInTheDocument();

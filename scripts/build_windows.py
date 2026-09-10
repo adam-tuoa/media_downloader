@@ -5,7 +5,7 @@ Layout produced under build/windows/:
     python/                 python.org "embeddable" runtime (pythonw.exe is signed by the PSF)
     Lib/site-packages/      our `app` package (incl. the built UI) and its dependencies
     Lib/site-packages/bin/  yt-dlp, ffmpeg, qjs (verbatim; the app finds them next to the package)
-    MediaDownloader.cmd     fallback launcher; the installer's shortcut runs pythonw.exe directly
+    UsefulMedia.cmd         fallback launcher; the installer's shortcut runs pythonw.exe directly
 
 Must run on Windows with the same Python minor version we ship (wheels are platform-specific).
 packaging/windows.iss then wraps the folder into an Inno Setup installer.
@@ -62,13 +62,13 @@ def main() -> int:
     assert (site / "app" / "static" / "index.html").exists(), "built UI missing - run npm run build"
 
     print("adding yt-dlp, ffmpeg and qjs")
-    # pip --target drops console-script wrappers (uvicorn.exe, media-downloader.exe) into
+    # pip --target drops console-script wrappers (uvicorn.exe, usefulmedia.exe) into
     # <target>/bin; they can't work in this layout and the real binaries go there instead.
     shutil.rmtree(site / "bin", ignore_errors=True)
     shutil.copytree(ROOT / "backend" / "bin", site / "bin")
     assert (site / "bin" / "yt-dlp" / "yt-dlp.exe").exists(), "run scripts/fetch_binaries.py first"
 
-    (OUT / "MediaDownloader.cmd").write_text(
+    (OUT / "UsefulMedia.cmd").write_text(
         '@start "" "%~dp0python\\pythonw.exe" -m app.launcher\r\n', encoding="utf-8"
     )
     size = sum(f.stat().st_size for f in OUT.rglob("*") if f.is_file()) / 1e6

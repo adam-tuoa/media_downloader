@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getHealth } from '../api';
 
-const RELEASES = 'https://github.com/adam-tuoa/media_downloader/releases/latest';
+const RELEASES = 'https://github.com/tuoa-tools/usefulmedia/releases/latest';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -62,7 +62,7 @@ export default function HelpPanel() {
           to that browser and try again.
         </p>
         <p>
-          Firefox works best. Safari on a Mac needs Media Downloader switched on under System
+          Firefox works best. Safari on a Mac needs UsefulMedia switched on under System
           Settings → Privacy &amp; Security → Full Disk Access first. Chrome on Windows often
           refuses to share its cookies — use Firefox or Edge instead.
         </p>
@@ -85,7 +85,7 @@ export default function HelpPanel() {
       </Section>
 
       <p className="border-t border-slate-100 pt-4 text-xs text-slate-500">
-        Media Downloader {health.data?.version ?? ''} ·{' '}
+        UsefulMedia {health.data?.version ?? ''} ·{' '}
         <a href={RELEASES} target="_blank" rel="noreferrer" className="underline">
           downloads page
         </a>

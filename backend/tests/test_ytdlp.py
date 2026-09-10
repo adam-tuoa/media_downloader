@@ -81,11 +81,11 @@ def test_parse_progress_identifies_stream():
 def test_base_args_apply_cookies_and_allowlist(monkeypatch):
     monkeypatch.setattr(ytdlp.options, "cookies_browser", None)
     monkeypatch.setattr(ytdlp.options, "unreadable_browser", None)
-    monkeypatch.delenv("MD_ALLOW_ANY_SITE", raising=False)
+    monkeypatch.delenv("USEFULMEDIA_ALLOW_ANY_SITE", raising=False)
     args = ytdlp.base_args()
     assert "--use-extractors" in args and "--cookies-from-browser" not in args
     monkeypatch.setattr(ytdlp.options, "cookies_browser", "firefox")
-    monkeypatch.setenv("MD_ALLOW_ANY_SITE", "1")
+    monkeypatch.setenv("USEFULMEDIA_ALLOW_ANY_SITE", "1")
     args = ytdlp.base_args()
     assert args[args.index("--cookies-from-browser") + 1] == "firefox"
     assert "--use-extractors" not in args
@@ -130,7 +130,7 @@ def test_complete_chapters_closes_the_ffprobe_path():
 def test_frozen_parent_environment_is_scrubbed_for_children():
     env = {
         "PATH": "/usr/bin",
-        "_PYI_ARCHIVE_FILE": "/app/MediaDownloader",
+        "_PYI_ARCHIVE_FILE": "/app/UsefulMedia",
         "_PYI_APPLICATION_HOME_DIR": "/app/_internal",
         "_MEIPASS2": "/app/_internal",
         "LD_LIBRARY_PATH": "/app/_internal",

@@ -1,6 +1,8 @@
-# Plan — Media Downloader (for Dad)
+# Plan — UsefulMedia (for Dad)
 
-Status: **v0.6.1 (2026-09-09): unreadable browser cookies are skipped rather than sinking every download, with a notice.
+Status: **v0.7.0 (2026-09-10): the app is UsefulMedia — repo transferred to `tuoa-tools/usefulmedia`, app name,
+window title, env vars, app-data folder, bundle id and artefact names renamed; an existing install's settings and Library
+move across on first launch (see Decisions).** v0.6.1 (2026-09-09): unreadable browser cookies are skipped rather than sinking every download, with a notice.
 v0.6.0 the same day: Safari-cookies hint, one language for dubs and subtitles, WAV/AIFF, Settings + Help
 dialogs, default choices in Settings, open in the OS player, Library playlists (multi-select, add to playlist,
 browse one, open its folder), compact icon rows.** v0.5.1 the same day slimmed the bundle (QuickJS-ng for Deno, no
@@ -45,7 +47,7 @@ Primary user: Adam's dad. Audio quality matters; often audio-only (MP3) is all t
     env vars and `LD_LIBRARY_PATH` to children (scrubbed in `ytdlp.clean_frozen_env`), and frozen Python has
     no CA bundle (`certifi` for the release check).
   - **Windows Defender vs PyInstaller** (found by Adam on the v0.4.0 zip, 2026-09-06): Defender quarantined
-    `MediaDownloader.exe` as a threat and "dismiss" did nothing — the classic unsigned-PyInstaller-bootloader
+    the PyInstaller-built `.exe` as a threat and "dismiss" did nothing — the classic unsigned-PyInstaller-bootloader
     false positive. Windows therefore ships **no custom exe**: python.org embeddable runtime (PSF-signed
     `pythonw.exe`) + pip-installed package + Inno Setup installer with a shortcut to `pythonw.exe -m app.launcher`.
   - **Audio** (checked 2026-09-06): `-x --audio-format best` keeps the native codec (`.opus` from YouTube, `.mp3`
@@ -63,9 +65,18 @@ Primary user: Adam's dad. Audio quality matters; often audio-only (MP3) is all t
   Tailwind v4, TanStack Query, shadcn/ui.
 - **Sites:** extractor allowlist — YouTube + `youtube:tab` (playlists), Vimeo, Bandcamp (+ album).
   Anything else is rejected with a plain message.
-- **Repo (decided 2026-09-06):** one **public** repo, renamed `adam-tuoa/media_downloader`, releases attached
-  to it. Rationale: yt-dlp front-ends are common and public; a public repo means Dad's download link and the
+- **Repo (decided 2026-09-06):** one **public** repo, releases attached to it — `adam-tuoa/media_downloader` at the
+  time, transferred to `tuoa-tools/usefulmedia` on 2026-09-10 (GitHub redirects the old address). Rationale: yt-dlp front-ends are common and public; a public repo means Dad's download link and the
   in-app update check work without a GitHub login, and CI minutes are free. README carries a personal-use note.
+- **Renamed UsefulMedia (2026-09-10, v0.7.0).** The "Useful" family convention with UsefulText: org `tuoa-tools`,
+  public, MIT. Everything follows the name — window title and UI, `USEFULMEDIA_*` env vars (all six, not only the
+  launcher's four), the platformdirs folder `UsefulMedia`, bundle id `au.com.tuoa.usefulmedia`, `UsefulMedia-<platform>`
+  artefacts, the update check's repo. Carrying existing installs over: `paths.data_dir()` renames the old app-data
+  folder to the new one once, if the new one doesn't exist yet (settings, Library and log come with it); when no
+  download folder is stored and the old default `Downloads/Media Downloader` exists, it is written into settings so
+  a rename never moves anyone's downloads (new installs get `Downloads/UsefulMedia`). The Inno Setup `AppId` is
+  deliberately unchanged so the Windows installer upgrades the old install in place (one app in Apps & features;
+  the old shortcut keeps working); the macOS bundle id changes, so the old `.app` is simply deleted.
 - **`MODE=local|hosted` switch** kept in config so a hosted copy stays possible, but auth / Library /
   rate limiting are out of scope until someone wants them.
 - **Trim/clip ranges:** later.
@@ -129,7 +140,7 @@ Each phase leaves the app working. Tests + CI land in Phase 0 so later phases st
       for public videos; also unlocks private / members-only / age-checked YouTube
 - [x] Per-stream progress labels ("Downloading video" / "Downloading audio") so a merge doesn't look like a restart
 - [x] Friendly hints prepended to yt-dlp errors people can act on (cookies, private, unavailable)
-- [x] `MD_ALLOW_ANY_SITE=1` escape hatch for Adam's own use
+- [x] `USEFULMEDIA_ALLOW_ANY_SITE=1` escape hatch for Adam's own use
 
 ### Phase 3 — Audio & quality
 - [x] Audio modes: **Original** (Opus → `.opus`, or `.m4a` when source is AAC), **M4A** (AAC), **MP3** 320/192/128
@@ -170,7 +181,7 @@ To do, roughly in order of value for effort (list reviewed with Adam 2026-09-09)
       failed with `[Errno 1] Operation not permitted: ~/Library/Cookies/Cookies.binarycookies` — macOS privacy
       (TCC) blocking the app — and the hint wrongly said "set Use cookies from in Settings". Recognise that
       message and say so plainly: "macOS is blocking Safari's cookies. System Settings → Privacy & Security →
-      Full Disk Access → add Media Downloader (or Terminal when running from source), then try again. Firefox
+      Full Disk Access → add UsefulMedia (or Terminal when running from source), then try again. Firefox
       and Chrome don't need this." Also in Help and the README.
 - [x] **One language for dubbed audio and subtitles — done 2026-09-09.** Settings gets a single "Language" (used for YouTube's
       dubbed audio *and* subtitles); the form keeps only the subtitles checkbox, whose text reads "Include
@@ -222,7 +233,7 @@ To do, roughly in order of value for effort (list reviewed with Adam 2026-09-09)
 **Medium — a day or two each**
 - [ ] **First-run setup instead of a silent default folder** (Adam, 2026-09-09: don't assume Music or any other
       folder). When no settings are stored yet, show a one-time setup: the download folder (pre-filled with
-      `Downloads/Media Downloader`, with a note that Windows Storage Sense / macOS can auto-clean Downloads) and
+      `Downloads/UsefulMedia`, with a note that Windows Storage Sense / macOS can auto-clean Downloads) and
       the language. Saving writes both, so later default changes never move anyone. No country setting: geo-blocks
       are by IP address, yt-dlp's country flag only fakes a header YouTube ignores, and dubbed audio and subtitles
       are keyed by language.
@@ -276,7 +287,7 @@ To do, roughly in order of value for effort (list reviewed with Adam 2026-09-09)
   mostly work anonymously (`facebook.com/watch`, `/reel/`, `/videos/`, `fb.watch` short links); private or group
   videos need cookies. Instagram: nearly everything needs a signed-in browser's cookies, the extractor breaks often,
   and automated access can get the account temporarily flagged — set expectations before adding it. The work
-  itself is small: allowlist entries + link normalisation + tests. Try a real link first with `MD_ALLOW_ANY_SITE=1`.
+  itself is small: allowlist entries + link normalisation + tests. Try a real link first with `USEFULMEDIA_ALLOW_ANY_SITE=1`.
 - "Batch finished" desktop notification
 
 ## Open questions — resolved "keep it flexible" (2026-09-06)

@@ -46,7 +46,7 @@ def detect() -> tuple[str, str]:
 
 def fetch(url: str) -> bytes:
     print(f"  downloading {url}")
-    req = urllib.request.Request(url, headers={"User-Agent": "media-downloader-fetch"})
+    req = urllib.request.Request(url, headers={"User-Agent": "usefulmedia-fetch"})
     with urllib.request.urlopen(req, timeout=300) as resp:
         return resp.read()
 

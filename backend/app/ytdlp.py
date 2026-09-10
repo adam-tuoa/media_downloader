@@ -44,7 +44,7 @@ def _default_bin_dir() -> Path:
     return Path(__file__).resolve().parent.parent / "bin"
 
 
-BIN_DIR = Path(os.environ.get("MD_BIN_DIR") or _default_bin_dir())
+BIN_DIR = Path(os.environ.get("USEFULMEDIA_BIN_DIR") or _default_bin_dir())
 _EXE_SUFFIX = ".exe" if os.name == "nt" else ""
 # Stops console windows flashing up when the packaged (windowed) app spawns tools. Windows only.
 _CREATION_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0)

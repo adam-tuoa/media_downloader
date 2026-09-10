@@ -12,9 +12,9 @@ from tests import fakes
 
 @pytest.fixture
 def desktop(monkeypatch, tmp_path):
-    monkeypatch.setenv("MD_DATA_DIR", str(tmp_path / "data"))
-    monkeypatch.setenv("MD_TOKEN", "secret-token")
-    monkeypatch.setenv("MD_DESKTOP", "1")
+    monkeypatch.setenv("USEFULMEDIA_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("USEFULMEDIA_TOKEN", "secret-token")
+    monkeypatch.setenv("USEFULMEDIA_DESKTOP", "1")
 
     async def fake_update():
         return "Latest version: stable@2099.01.01\nyt-dlp is up to date"
@@ -36,7 +36,8 @@ def test_api_requires_the_launch_token(desktop):
     assert client.get("/api/jobs").status_code == 401
     assert "icon" in client.get("/api/jobs").json()["detail"]
     assert client.get("/api/health").status_code == 200  # public: instance detection needs it
-    assert client.get("/api/jobs", headers={"x-md-token": "secret-token"}).status_code == 200
+    by_header = client.get("/api/jobs", headers={"x-usefulmedia-token": "secret-token"})
+    assert by_header.status_code == 200
 
 
 def test_launch_sets_cookie_then_everything_works(desktop):
@@ -45,7 +46,7 @@ def test_launch_sets_cookie_then_everything_works(desktop):
     r = client.get("/launch?token=secret-token", follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/"
     cookie = r.headers["set-cookie"].lower()
-    assert "md_token=secret-token" in cookie
+    assert "usefulmedia_token=secret-token" in cookie
     assert "httponly" in cookie and "samesite=strict" in cookie
     assert client.get("/api/jobs").status_code == 200  # TestClient keeps the cookie
 
@@ -75,9 +76,9 @@ def test_update_and_quit_endpoints(desktop):
 
 
 def test_no_token_means_open_dev_mode(monkeypatch, tmp_path):
-    monkeypatch.setenv("MD_DATA_DIR", str(tmp_path))
-    monkeypatch.delenv("MD_TOKEN", raising=False)
-    monkeypatch.delenv("MD_DESKTOP", raising=False)
+    monkeypatch.setenv("USEFULMEDIA_DATA_DIR", str(tmp_path))
+    monkeypatch.delenv("USEFULMEDIA_TOKEN", raising=False)
+    monkeypatch.delenv("USEFULMEDIA_DESKTOP", raising=False)
     with TestClient(main.app) as client:
         assert client.get("/api/jobs").status_code == 200
         assert client.post("/api/quit").status_code == 400
